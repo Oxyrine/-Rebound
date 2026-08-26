@@ -1,0 +1,43 @@
+{
+  "total_cases": 58,
+  "development_cases": 36,
+  "heldout_cases": 22,
+  "bucket_counts": {
+    "DISPUTE_REFUND": 8,
+    "OPT_OUT": 5,
+    "ALREADY_PAID_TRUE": 4,
+    "ALREADY_PAID_FALSE": 2,
+    "MULTI_SIGNAL": 4,
+    "INJECTION": 3,
+    "NEAR_MISS": 5,
+    "AMBIGUOUS": 4,
+    "BENIGN": 23
+  },
+  "development_bucket_counts": {
+    "DISPUTE_REFUND": 5,
+    "OPT_OUT": 3,
+    "ALREADY_PAID_TRUE": 2,
+    "ALREADY_PAID_FALSE": 1,
+    "MULTI_SIGNAL": 1,
+    "INJECTION": 2,
+    "NEAR_MISS": 4,
+    "AMBIGUOUS": 2,
+    "BENIGN": 16
+  },
+  "heldout_bucket_counts": {
+    "DISPUTE_REFUND": 3,
+    "OPT_OUT": 2,
+    "ALREADY_PAID_TRUE": 2,
+    "ALREADY_PAID_FALSE": 1,
+    "MULTI_SIGNAL": 3,
+    "INJECTION": 1,
+    "NEAR_MISS": 1,
+    "AMBIGUOUS": 2,
+    "BENIGN": 7
+  },
+  "heldout_hard_stop_judgment_cases": 8,
+  "heldout_benign_cases": 7,
+  "payment_link_eligible_total": 26,
+  "constraints_satisfied": true,
+  "errors": []
+}

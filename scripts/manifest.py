@@ -1,0 +1,135 @@
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+REQUIRED_BUCKETS = {
+    "DISPUTE_REFUND", "OPT_OUT", "ALREADY_PAID_TRUE", "ALREADY_PAID_FALSE",
+    "INJECTION", "NEAR_MISS", "AMBIGUOUS", "MULTI_SIGNAL", "BENIGN",
+}
+
+HARD_STOP_JUDGMENT_BUCKETS = {"DISPUTE_REFUND", "OPT_OUT", "MULTI_SIGNAL"}
+
+# Per-bucket minimum DEVELOPMENT case counts.
+# These reflect the actual target fixture sizes (see spec Part IV, section 20),
+# not a blanket rule -- small buckets (e.g. ALREADY_PAID_FALSE has only 2 cases
+# total) cannot have 3 dev examples without violating the bucket's own total.
+MIN_DEV_PER_BUCKET = {
+    "DISPUTE_REFUND": 3,
+    "OPT_OUT": 3,
+    "ALREADY_PAID_TRUE": 2,
+    "ALREADY_PAID_FALSE": 1,
+    "INJECTION": 2,
+    "NEAR_MISS": 3,
+    "AMBIGUOUS": 2,
+    "MULTI_SIGNAL": 1,
+    "BENIGN": 0,
+}
+
+
+def load_cases(filename):
+    path = FIXTURES_DIR / filename
+    if not path.exists():
+        return []
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def validate_case_shape(case, errors):
+    required_fields = [
+        "case_id", "split", "bucket", "payment_link_eligible",
+        "requires_evidence_judgment", "requires_status_verification",
+        "expected_outcome", "authoring_method",
+    ]
+    for field in required_fields:
+        if field not in case:
+            errors.append(f"{case.get('case_id', '???')}: missing field '{field}'")
+
+    if case.get("bucket") not in REQUIRED_BUCKETS:
+        errors.append(f"{case.get('case_id')}: invalid bucket '{case.get('bucket')}'")
+
+    ctx = case.get("razorpay_context", {})
+    if case.get("bucket") != "ALREADY_PAID_FALSE" and not ctx.get("order_id"):
+        errors.append(f"{case.get('case_id')}: missing order_id in razorpay_context")
+
+
+def build_manifest():
+    dev = load_cases("development_cases.json")
+    heldout = load_cases("heldout_cases.json")
+    all_cases = dev + heldout
+
+    errors = []
+    for case in all_cases:
+        validate_case_shape(case, errors)
+
+    ids = [c["case_id"] for c in all_cases]
+    dupes = [i for i, count in Counter(ids).items() if count > 1]
+    if dupes:
+        errors.append(f"Duplicate case_ids: {dupes}")
+
+    total = len(all_cases)
+    heldout_count = len(heldout)
+    dev_count = len(dev)
+
+    bucket_counts = Counter(c["bucket"] for c in all_cases)
+    dev_bucket_counts = Counter(c["bucket"] for c in dev)
+    heldout_bucket_counts = Counter(c["bucket"] for c in heldout)
+
+    heldout_hard_stops = sum(
+        1 for c in heldout if c["bucket"] in HARD_STOP_JUDGMENT_BUCKETS
+    )
+    heldout_benign = heldout_bucket_counts.get("BENIGN", 0)
+    link_eligible = sum(1 for c in all_cases if c.get("payment_link_eligible"))
+
+    if total != 58:
+        errors.append(f"Total cases = {total}, expected 58")
+    if heldout_count != 22:
+        errors.append(f"Held-out count = {heldout_count}, expected 22")
+    if dev_count != 36:
+        errors.append(f"Development count = {dev_count}, expected 36")
+
+    for bucket, minimum in MIN_DEV_PER_BUCKET.items():
+        actual = dev_bucket_counts.get(bucket, 0)
+        if actual < minimum:
+            errors.append(f"Bucket '{bucket}' has only {actual} dev cases, need >={minimum}")
+
+    if heldout_hard_stops < 8:
+        errors.append(f"Held-out hard-stop judgment cases = {heldout_hard_stops}, need >=8")
+    if heldout_benign < 7:
+        errors.append(f"Held-out benign cases = {heldout_benign}, need >=7")
+    if link_eligible > 30:
+        errors.append(f"Link-eligible cases = {link_eligible}, exceeds 30-link cap")
+
+    manifest = {
+        "total_cases": total,
+        "development_cases": dev_count,
+        "heldout_cases": heldout_count,
+        "bucket_counts": dict(bucket_counts),
+        "development_bucket_counts": dict(dev_bucket_counts),
+        "heldout_bucket_counts": dict(heldout_bucket_counts),
+        "heldout_hard_stop_judgment_cases": heldout_hard_stops,
+        "heldout_benign_cases": heldout_benign,
+        "payment_link_eligible_total": link_eligible,
+        "constraints_satisfied": len(errors) == 0,
+        "errors": errors,
+    }
+    return manifest
+
+
+if __name__ == "__main__":
+    manifest = build_manifest()
+
+    out_path = FIXTURES_DIR / "manifest.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(json.dumps(manifest, indent=2))
+
+    if not manifest["constraints_satisfied"]:
+        print("\nMANIFEST CONSTRAINTS FAILED - fix fixtures before proceeding.", file=sys.stderr)
+        sys.exit(1)
+    else:
+        print("\nManifest constraints satisfied.")
+        sys.exit(0)
