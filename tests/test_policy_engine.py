@@ -1,6 +1,7 @@
 import json
 
 from src.audit_log import AuditLog, verify_chain
+from src.instruction_detector import is_suspicious
 from src.policy_engine import route
 from src.structured_prechecks import PrecheckResult, check
 from src.typed_boundary import AgentOutput
@@ -104,26 +105,26 @@ CASES_DIR = "fixtures/development_cases.json"
 # A mock interpreter's output for each case, hand-constructed the way a
 # correct interpreter would read the customer_reply (§22: "mock the
 # interpreter, build the engine against it, swap the real LLM in late").
-# pre_screen_matched mirrors each case's own pre_screen_expected ground
-# truth, standing in for ticket 03's not-yet-built detector.
+# pre_screen_matched now comes from the real instruction_detector.py
+# (ticket 03) rather than being hand-mocked -- see the loop below.
 MOCK_INTERPRETATIONS = {
-    "RCV-004": dict(stop_signals=["DISPUTE_OR_REFUND"], pre_screen_matched=False, expected_route="STOP"),
-    "RCV-011": dict(stop_signals=["EXPLICIT_OPT_OUT"], pre_screen_matched=False, expected_route="STOP"),
-    "RCV-016": dict(stop_signals=["PAYMENT_ALREADY_MADE_CLAIM"], pre_screen_matched=False, expected_route="VERIFY"),
-    "RCV-019": dict(stop_signals=["PAYMENT_ALREADY_MADE_CLAIM"], pre_screen_matched=False, expected_route="VERIFY"),
+    "RCV-004": dict(stop_signals=["DISPUTE_OR_REFUND"], expected_route="STOP"),
+    "RCV-011": dict(stop_signals=["EXPLICIT_OPT_OUT"], expected_route="STOP"),
+    "RCV-016": dict(stop_signals=["PAYMENT_ALREADY_MADE_CLAIM"], expected_route="VERIFY"),
+    "RCV-019": dict(stop_signals=["PAYMENT_ALREADY_MADE_CLAIM"], expected_route="VERIFY"),
     # "...stop pestering me... don't call me... discuss later" -- opt-out
     # plus a vague, undated "later" that the specificity gate doesn't
     # count as PROMISE_TO_PAY, so opt-out is the only real signal.
-    "RCV-023": dict(stop_signals=["EXPLICIT_OPT_OUT"], pre_screen_matched=False, expected_route="STOP"),
-    "RCV-025": dict(stop_signals=[], pre_screen_matched=True, expected_route="REVIEW"),
-    "RCV-034": dict(stop_signals=["AMBIGUOUS_OR_CONFLICTING"], pre_screen_matched=False, expected_route="REVIEW"),
+    "RCV-023": dict(stop_signals=["EXPLICIT_OPT_OUT"], expected_route="STOP"),
+    "RCV-025": dict(stop_signals=[], expected_route="REVIEW"),
+    "RCV-034": dict(stop_signals=["AMBIGUOUS_OR_CONFLICTING"], expected_route="REVIEW"),
     # Vague promise ("sure will pay soon") -- specificity gate says this
     # doesn't count, so the interpreter emits no PROMISE_TO_PAY signal.
-    "RCV-045": dict(stop_signals=[], pre_screen_matched=False, expected_route="RECOVER"),
-    "RCV-059": dict(stop_signals=["PROMISE_TO_PAY"], pre_screen_matched=False, expected_route="PAUSE"),
+    "RCV-045": dict(stop_signals=[], expected_route="RECOVER"),
+    "RCV-059": dict(stop_signals=["PROMISE_TO_PAY"], expected_route="PAUSE"),
     # No customer_reply at all -- the ordinary, silent case (§20: "most
     # cases have no customer reply").
-    "RCV-043": dict(stop_signals=[], pre_screen_matched=False, expected_route="RECOVER"),
+    "RCV-043": dict(stop_signals=[], expected_route="RECOVER"),
 }
 
 
@@ -154,7 +155,8 @@ def test_tracer_bullet_matches_expected_route_for_each_case(tmp_path):
             requires_human_review=False,
             suspected_injection=False,
         )
-        decision = route(ao, precheck, pre_screen_matched=mock["pre_screen_matched"])
+        pre_screen_matched = is_suspicious(case.get("customer_reply") or "")
+        decision = route(ao, precheck, pre_screen_matched=pre_screen_matched)
 
         assert decision.route == mock["expected_route"], (
             f"{case_id}: got {decision.route}, expected {mock['expected_route']}"
