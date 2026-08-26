@@ -83,12 +83,17 @@ def build_manifest():
     heldout_benign = heldout_bucket_counts.get("BENIGN", 0)
     link_eligible = sum(1 for c in all_cases if c.get("payment_link_eligible"))
 
-    if total != 58:
-        errors.append(f"Total cases = {total}, expected 58")
+    # 59, not the spec's original 58: RCV-059 was added deliberately on Day 2
+    # to give the PROMISE_TO_PAY specificity-gate rule (a dated promise pauses,
+    # a vague one doesn't) an isolated, single-signal proof case. Without it,
+    # the only PAUSE_UNTIL_DATE example (RCV-022) is also MULTI_SIGNAL, so the
+    # rule and "pauses only in combination" were indistinguishable on the data.
+    if total != 59:
+        errors.append(f"Total cases = {total}, expected 59")
     if heldout_count != 22:
         errors.append(f"Held-out count = {heldout_count}, expected 22")
-    if dev_count != 36:
-        errors.append(f"Development count = {dev_count}, expected 36")
+    if dev_count != 37:
+        errors.append(f"Development count = {dev_count}, expected 37")
 
     for bucket, minimum in MIN_DEV_PER_BUCKET.items():
         actual = dev_bucket_counts.get(bucket, 0)

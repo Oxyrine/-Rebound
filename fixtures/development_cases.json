@@ -790,5 +790,27 @@
       "payment_link_id": null,
       "merchant_invoice_reference": "INV-1058"
     }
+  },
+  {
+    "case_id": "RCV-059",
+    "split": "development",
+    "bucket": "BENIGN",
+    "customer_reply": "Sorry da, forgot to pay. Will pay you on Thursday for sure.",
+    "recovery_eligible": false,
+    "payment_link_eligible": false,
+    "requires_evidence_judgment": true,
+    "requires_status_verification": false,
+    "pre_screen_expected": false,
+    "expected_outcome": "PAUSE_UNTIL_DATE",
+    "authoring_method": "human_written",
+    "labeling_method": null,
+    "merchant_reference_id": "REBOUND-RCV-059",
+    "razorpay_context": {
+      "event_id": "evt_Dfk7iA6DSyJkYN",
+      "payment_id": "pay_kV5ZncfKY5wq49",
+      "order_id": "order_ovM3GLBAgk6SSQ",
+      "payment_link_id": null,
+      "merchant_invoice_reference": "INV-1059"
+    }
   }
 ]

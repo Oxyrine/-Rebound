@@ -1,6 +1,6 @@
 {
-  "total_cases": 58,
-  "development_cases": 36,
+  "total_cases": 59,
+  "development_cases": 37,
   "heldout_cases": 22,
   "bucket_counts": {
     "DISPUTE_REFUND": 8,
@@ -11,7 +11,7 @@
     "INJECTION": 3,
     "NEAR_MISS": 5,
     "AMBIGUOUS": 4,
-    "BENIGN": 23
+    "BENIGN": 24
   },
   "development_bucket_counts": {
     "DISPUTE_REFUND": 5,
@@ -22,7 +22,7 @@
     "INJECTION": 2,
     "NEAR_MISS": 4,
     "AMBIGUOUS": 2,
-    "BENIGN": 16
+    "BENIGN": 17
   },
   "heldout_bucket_counts": {
     "DISPUTE_REFUND": 3,
