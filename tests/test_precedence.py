@@ -46,7 +46,9 @@ def test_pre_screen_beats_promise_to_pay():
 
 
 def test_low_confidence_beats_promise_to_pay():
-    ao = _agent_output(stop_signals=["PROMISE_TO_PAY"], confidence=0.2)
+    # evidence_refs populated -- this test's subject is the confidence
+    # rung, not the (later-added, ticket 06) evidence-consistency rung.
+    ao = _agent_output(stop_signals=["PROMISE_TO_PAY"], confidence=0.2, evidence_refs=["customer_reply"])
     d = route(ao, OK, pre_screen_matched=False, confidence_threshold=0.5)
     assert d.matched_rung == "LOW_CONFIDENCE"
 
@@ -56,7 +58,7 @@ def test_rcv_022_shape_pauses_because_pre_screen_does_not_match():
     # your end by Friday." Says "last message", not "previous"/"prior", so
     # the deterministic pre-screen correctly stays silent (§19's pinned
     # regex specificity) and PROMISE_TO_PAY is the effective signal.
-    ao = _agent_output(stop_signals=["PROMISE_TO_PAY"])
+    ao = _agent_output(stop_signals=["PROMISE_TO_PAY"], evidence_refs=["customer_reply"])
     d = route(ao, OK, pre_screen_matched=False)
     assert d.route == "PAUSE"
     assert d.matched_rung == "PROMISE_TO_PAY"

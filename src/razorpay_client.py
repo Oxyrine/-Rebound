@@ -59,3 +59,18 @@ class RazorpayClient:
         resp = self._session.get(f"{BASE_URL}/payments/{payment_id}")
         resp.raise_for_status()
         return resp.json()
+
+    def find_link_by_reference(self, reference_id: str, *, count: int = 100) -> dict | None:
+        """List recent payment links and search client-side for reference_id.
+        Confirmed empirically against the live account that the list
+        endpoint's `reference_id` query param does not filter server-side
+        (it silently returns the unfiltered list), so filtering happens
+        here instead. Used by link_dispatch.py to resolve a link left
+        UNKNOWN by a create-request timeout, without ever retrying creation.
+        """
+        resp = self._session.get(f"{BASE_URL}/payment_links", params={"count": count})
+        resp.raise_for_status()
+        for link in resp.json().get("payment_links", []):
+            if link.get("reference_id") == reference_id:
+                return link
+        return None

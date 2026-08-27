@@ -71,6 +71,13 @@ def route(
     if pre_screen_matched:
         return decide("REVIEW", "SUSPICIOUS_INSTRUCTION_DETECTED", "deterministic pre-screen matched")
 
+    # Chaos condition 3 (§22): a stop_signal asserted with nothing in
+    # evidence_refs to back it is a schema-consistency failure, not a
+    # signal to route on. Purely a function of agent_output's own fields,
+    # so it's checked here rather than threaded in as a parameter.
+    if signals and not refs:
+        return decide("REVIEW", "EVIDENCE_REFS_MISSING", "stop signal asserted without evidence_refs")
+
     if agent_output.confidence < confidence_threshold:
         return decide("REVIEW", "LOW_CONFIDENCE", f"confidence {agent_output.confidence} below threshold")
 
