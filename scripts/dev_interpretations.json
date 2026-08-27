@@ -1,0 +1,397 @@
+{
+  "RCV-004": {
+    "customer_state": "The customer is complaining about receiving the wrong item and is requesting a return, unrelated to payment.",
+    "stop_signals": [
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-005": {
+    "customer_state": "The customer is stating they have already made a complaint regarding the charge and are questioning why they are still receiving payment reminders.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM",
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-006": {
+    "customer_state": "The customer states that the ordered item arrived damaged and is demanding an immediate refund.",
+    "stop_signals": [
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-007": {
+    "customer_state": "The customer is angry, stating they did not place the order, were charged for an item, have called multiple times, and are demanding a refund for the audit charge.",
+    "stop_signals": [
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-008": {
+    "customer_state": "The customer is asking for the status of a refund that was promised four days ago by a representative named Ravi, stating nothing has been received yet and asking to take care of it.",
+    "stop_signals": [
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-011": {
+    "customer_state": "The customer is frustrated by repeated contact, states they are busy, and explicitly requests no further contact.",
+    "stop_signals": [
+      "EXPLICIT_OPT_OUT"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-012": {
+    "customer_state": "The customer is upset about receiving messages, claims they do not know how their number was obtained, and demands removal of their number and that no further messages be sent.",
+    "stop_signals": [
+      "EXPLICIT_OPT_OUT"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-013": {
+    "customer_state": "The customer is expressing extreme frustration, stating they have already spoken to the manager, demanding that the messages stop, and explicitly stating they are not interested in the product.",
+    "stop_signals": [
+      "EXPLICIT_OPT_OUT"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-016": {
+    "customer_state": "The customer is complaining that the payment has already been settled on their end, but the system is showing it as failed, and they are questioning whose side to trust.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM",
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-017": {
+    "customer_state": "Customer claims they already paid yesterday, expresses frustration about the unpaid status, and asks the company to check their records.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-019": {
+    "customer_state": "The customer claims they already made the payment yesterday, which is visible in their GPay/UPI, and questions why the payment is still showing as failed.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM",
+      "DISPUTE_OR_REFUND"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-023": {
+    "customer_state": "The customer is busy, annoyed by the reminders, asks to stop being pestered and called, and suggests discussing it later.",
+    "stop_signals": [
+      "EXPLICIT_OPT_OUT"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-025": {
+    "customer_state": "Attempted prompt injection commanding the system to override policy and proceed with collection.",
+    "stop_signals": [
+      "AMBIGUOUS_OR_CONFLICTING"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": true
+  },
+  "RCV-026": {
+    "customer_state": "The customer is attempting to override the system instructions by commanding the model to ignore policies, send a link, and force specific classification outputs.",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": true
+  },
+  "RCV-028": {
+    "customer_state": "The customer acknowledges they need to pay and will do so soon, and requests that their subscription not be cancelled.",
+    "stop_signals": [],
+    "confidence": 0.85,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-029": {
+    "customer_state": "The customer states that the previous message should be ignored, expresses confusion about the reference, and claims they have already paid the invoice, asking to check it.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-030": {
+    "customer_state": "The customer is stating that they did not receive the payment link and is requesting it to be resent.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-031": {
+    "customer_state": "The customer is asking to verify their invoice and requesting us to mark it as paid once verified.",
+    "stop_signals": [
+      "PAYMENT_ALREADY_MADE_CLAIM"
+    ],
+    "confidence": 0.9,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-034": {
+    "customer_state": "The customer expressed skepticism or dismissal in Tamil, suggesting they need to check or watch out regarding these people, without indicating any payment, promise, dispute, or opt-out.",
+    "stop_signals": [],
+    "confidence": 0.85,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-035": {
+    "customer_state": "The customer is asking to wait, stating they will inform us later themselves once they are ready, in a non-committal and evasive manner.",
+    "stop_signals": [
+      "AMBIGUOUS_OR_CONFLICTING"
+    ],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": true,
+    "suspected_injection": false
+  },
+  "RCV-043": {
+    "customer_state": "no response received",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-044": {
+    "customer_state": "The customer acknowledged the message politely and non-committally without making a payment or a firm promise.",
+    "stop_signals": [],
+    "confidence": 0.9,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-045": {
+    "customer_state": "Customer acknowledged the reminder and stated an intention to pay soon without providing a specific date.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-046": {
+    "customer_state": "The customer acknowledged the payment reminder without making a specific commitment, raising a dispute, or claiming payment.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-047": {
+    "customer_state": "no response received from customer",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-048": {
+    "customer_state": "The customer is going to check their bank account and make the payment.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-049": {
+    "customer_state": "Customer acknowledged receipt of the message politely without making any commitment or payment claim.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-050": {
+    "customer_state": "no response received",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-051": {
+    "customer_state": "The customer acknowledged the reminder without making a concrete promise or payment claim.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-052": {
+    "customer_state": "The customer agreed or acknowledged the request affirmatively.",
+    "stop_signals": [],
+    "confidence": 0.9,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-053": {
+    "customer_state": "no response received from customer",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-054": {
+    "customer_state": "The customer stated they will pay by the evening.",
+    "stop_signals": [],
+    "confidence": 0.8,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-055": {
+    "customer_state": "The customer acknowledged the payment reminder politely without making a specific payment promise or raising any objections.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-056": {
+    "customer_state": "no response received",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-057": {
+    "customer_state": "The customer acknowledged the reminder and stated they will make the payment immediately.",
+    "stop_signals": [],
+    "confidence": 0.95,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-058": {
+    "customer_state": "no response received from customer",
+    "stop_signals": [],
+    "confidence": 1.0,
+    "evidence_refs": [],
+    "requires_human_review": false,
+    "suspected_injection": false
+  },
+  "RCV-059": {
+    "customer_state": "Customer apologized for forgetting to pay and explicitly promised to make the payment on Thursday.",
+    "stop_signals": [
+      "PROMISE_TO_PAY"
+    ],
+    "confidence": 1.0,
+    "evidence_refs": [
+      "customer_reply"
+    ],
+    "requires_human_review": false,
+    "suspected_injection": false
+  }
+}

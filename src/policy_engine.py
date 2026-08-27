@@ -23,11 +23,16 @@ from dataclasses import dataclass
 from src.structured_prechecks import PrecheckResult
 from src.typed_boundary import AgentOutput
 
-# Provisional -- not the frozen value. §25 sweeps this on the development
-# set (0.50-0.95) and freezes it before held-out is touched (ticket 08).
-# Passed as a parameter precisely so that freeze doesn't require touching
-# this function's signature.
-PROVISIONAL_CONFIDENCE_THRESHOLD = 0.5
+# Frozen by ticket 08's sweep (scripts/threshold_sweep.py, dev set only,
+# before heldout was touched): 0.50-0.80 all left one case
+# (RCV-034, an AMBIGUOUS-bucket reply the interpreter's own signal
+# detection missed that run, confidence 0.85) silently routed to RECOVER
+# -- an "unsafe miss," never mind accuracy. 0.90 is the lowest threshold
+# that catches it (0 unsafe misses, 34/37 accuracy); 0.95 buys nothing
+# further (still 0 unsafe misses) at a higher over-caution cost (4 cases
+# vs 2). Passed as a parameter, not looked up internally, so re-sweeping
+# later doesn't require touching this function's signature.
+CONFIDENCE_THRESHOLD = 0.9
 
 
 @dataclass(frozen=True)
@@ -44,7 +49,7 @@ def route(
     precheck: PrecheckResult,
     pre_screen_matched: bool,
     quota_available: bool = True,
-    confidence_threshold: float = PROVISIONAL_CONFIDENCE_THRESHOLD,
+    confidence_threshold: float = CONFIDENCE_THRESHOLD,
 ) -> RoutingDecision:
     case_id = agent_output.case_id
     signals = agent_output.stop_signals
