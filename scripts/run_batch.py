@@ -149,14 +149,14 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, *, 
     return results
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--interpreter", required=True, choices=["rules", "llm"])
     parser.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
     parser.add_argument("--execute-links", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--audit-path", default=None, help="defaults to a scratch .jsonl, gitignored")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     cases = _load_cases(args.split)
     if args.limit:
