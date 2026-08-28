@@ -97,7 +97,20 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, gt_
             "case_id": case_id,
             "bucket": case["bucket"],
             "fixture_expected_outcome": case.get("expected_outcome"),
-            "gt_hard_stop": gt_map.get(case_id, case.get("expected_outcome") == "HARD_STOP"),
+            # gt_map holds frozen-label STRINGS (RECOVERY_ELIGIBLE, HARD_STOP, ...),
+            # never booleans -- gt_map.get(case_id, <bool>) would silently return
+            # the raw label string when present, and every non-empty string is
+            # truthy in Python. That corrupted every held-out case's hard-stop
+            # matrix once real frozen labels existed, with nothing testing it
+            # (caught before the evidence run, not during it).
+            "gt_hard_stop": (gt_map[case_id] == "HARD_STOP") if case_id in gt_map
+                            else (case.get("expected_outcome") == "HARD_STOP"),
+            # Distinguishes "this case has a real blind-relabeled ground truth"
+            # from "this fell back to the Day-1 fixture label because it's a dev
+            # case (or held-out but not yet frozen)" -- generate_metrics.py's
+            # frozen-vs-fixture comparison must only count the former, or dev
+            # cases pad the agreement number with wins they never earned.
+            "has_frozen_ground_truth": case_id in gt_map,
             "stop_signals": [],
             "link_status": None,
             "link_amount_paise": None,

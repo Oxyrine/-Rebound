@@ -4,6 +4,9 @@ from pathlib import Path
 from src.metrics import recovery_funnel, safety_outcomes, hard_stop_matrix, operational_reliability, format_report
 from scripts.run_batch import AuditLog
 
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+
 def main():
     evidence_dir = Path("evidence")
     if not evidence_dir.exists():
@@ -23,20 +26,46 @@ def main():
         audit_records = AuditLog(audit_path).records()
 
     reports = []
-    
-    # Calculate Label Agreement (Frozen vs Day-1)
-    # We can just take the first file since both arms operate on the same cases
+
+    # §21's two DISTINCT numbers -- must never be collapsed into one line.
+    # See fixtures/labeling_rubric.md and docs/adr/ for the full taxonomy.
+    reports.append("=== §21 Ground-truth labeling (two separate findings) ===")
+
+    # Finding #1: pass 1 vs pass 2 -- the actual intra-rater agreement metric.
+    # Sourced from reconcile_labeling.py's own output, never recomputed here.
+    frozen_path = FIXTURES_DIR / "heldout_ground_truth_frozen.json"
+    if frozen_path.exists():
+        frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+        reports.append(
+            f"1. Intra-rater agreement (pass 1 vs pass 2, blind, 48h+ apart): "
+            f"{frozen.get('intra_rater_agreement', '[not yet run]')}"
+        )
+    else:
+        reports.append("1. Intra-rater agreement (pass 1 vs pass 2): [heldout_ground_truth_frozen.json not found]")
+
+    # Finding #2: frozen ground truth vs the Day-1 fixture's own expected_outcome
+    # -- did the original authoring instinct hold up under blind relabeling?
+    # A DIFFERENT question from #1. Scoped to has_frozen_ground_truth cases
+    # only (held-out) -- dev cases have no frozen label and would otherwise
+    # trivially "agree" with themselves, padding the number with wins never
+    # earned (same failure shape §24 already forbids for excluded buckets).
     first_data = json.loads(files[0].read_text(encoding="utf-8"))
-    first_results = list(first_data.values())
-    
+    first_results = [r for r in first_data.values() if r.get("has_frozen_ground_truth")]
+
     gt_total = len(first_results)
-    gt_matches = sum(1 for r in first_results if r.get("gt_hard_stop") == (r.get("fixture_expected_outcome") == "HARD_STOP"))
-    gt_discrepancies = gt_total - gt_matches
-    
-    reports.append("=== Ground Truth vs Day-1 Fixture Agreement ===")
-    reports.append(f"Total Cases: {gt_total}")
-    reports.append(f"Matches: {gt_matches}")
-    reports.append(f"Discrepancies (intra-rater disagreement): {gt_discrepancies}\n")
+    if gt_total:
+        gt_matches = sum(
+            1 for r in first_results
+            if r["gt_hard_stop"] == (r.get("fixture_expected_outcome") == "HARD_STOP")
+        )
+        gt_discrepancies = gt_total - gt_matches
+        reports.append(
+            f"2. Frozen ground truth vs Day-1 fixture authoring (held-out only, n={gt_total}): "
+            f"{gt_matches}/{gt_total} agree, {gt_discrepancies} discrepancy/ies"
+        )
+    else:
+        reports.append("2. Frozen ground truth vs Day-1 fixture authoring: [no frozen held-out labels yet]")
+    reports.append("")
 
     # §23 Two-Arm Table
     if len(files) == 2:
@@ -66,7 +95,12 @@ def main():
         table_row("Safety: HUMAN_REVIEW", lambda i: safeties[i]["HUMAN_REVIEW"])
         table_row("Matrix: True Stop", lambda i: matrices[i]["true_stop"])
         table_row("Matrix: False Stop", lambda i: matrices[i]["false_stop"])
-        table_row("Matrix: Missed Stop", lambda i: matrices[i]["missed_stop"])
+        # Split, not blanket "missed_stop" -- ticket 10 deliberately separated
+        # "caught by a different safe rung" from "genuinely fell through"
+        # (test_hard_stop_matrix_distinguishes_safe_from_unsafe_misses); a
+        # single collapsed number here would undo that.
+        table_row("Matrix: Missed Stop (still safe)", lambda i: matrices[i]["missed_stop_but_still_safe"])
+        table_row("Matrix: Missed Stop (unsafe)", lambda i: matrices[i]["missed_stop_unsafe"])
         reports.append("")
 
     # §24 Full Reports
