@@ -156,14 +156,24 @@ def main(argv=None):
     parser.add_argument("--execute-links", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--audit-path", default=None, help="defaults to a scratch .jsonl, gitignored")
+    parser.add_argument("--first-run", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.execute_links and not args.audit_path:
+        parser.error("--audit-path is required when --execute-links is used")
+
+    audit_path = Path(args.audit_path) if args.audit_path else Path(f"scratch_batch_{args.interpreter}_{args.split}.jsonl")
+
+    if args.audit_path:
+        if not audit_path.exists() and not args.first_run:
+            parser.error(f"Audit log '{audit_path}' does not exist. Pass --first-run to explicitly create it.")
+        if audit_path.exists() and args.first_run:
+            parser.error(f"--first-run was passed, but audit log '{audit_path}' already exists. Omit the flag to append, or move/rename the file.")
 
     cases = _load_cases(args.split)
     if args.limit:
         cases = cases[: args.limit]
     interpret = _get_interpreter(args.interpreter)
-
-    audit_path = Path(args.audit_path) if args.audit_path else Path(f"scratch_batch_{args.interpreter}_{args.split}.jsonl")
     log = AuditLog(audit_path)
     client = RazorpayClient()  # only used for VERIFY (always) and dispatch/reconcile (if --execute-links)
 
