@@ -49,11 +49,9 @@ _ROUTE_TO_OUTCOME = {
 }
 
 
-def _load_cases(split: str) -> list[dict]:
-    dev = json.loads((FIXTURES_DIR / "development_cases.json").read_text(encoding="utf-8"))
+def _frozen_ground_truth(split: str) -> dict:
     if split == "dev":
-        return dev
-
+        return {}
     frozen_path = FIXTURES_DIR / "heldout_ground_truth_frozen.json"
     if not frozen_path.exists() or not json.loads(frozen_path.read_text(encoding="utf-8")).get("frozen"):
         raise SystemExit(
@@ -61,6 +59,13 @@ def _load_cases(split: str) -> list[dict]:
             f"(fixtures/heldout_ground_truth_frozen.json with \"frozen\": true) -- "
             f"see scripts/reconcile_labeling.py. Not ready yet (ticket 09)."
         )
+    return json.loads(frozen_path.read_text(encoding="utf-8")).get("ground_truth", {})
+
+
+def _load_cases(split: str) -> list[dict]:
+    dev = json.loads((FIXTURES_DIR / "development_cases.json").read_text(encoding="utf-8"))
+    if split == "dev":
+        return dev
     heldout = json.loads((FIXTURES_DIR / "heldout_cases.json").read_text(encoding="utf-8"))
     return heldout if split == "heldout" else dev + heldout
 
@@ -75,7 +80,7 @@ def _get_interpreter(name: str):
     raise SystemExit(f"unknown --interpreter={name!r}, use 'rules' or 'llm'")
 
 
-def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, *, execute_links: bool) -> list[dict]:
+def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, gt_map: dict, *, execute_links: bool, is_llm: bool) -> list[dict]:
     results = []
     seen_case_ids = set()
 
@@ -83,12 +88,16 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, *, 
         case_id = case["case_id"]
         event = {"case_id": case_id, "razorpay_context": case["razorpay_context"], "dispute_open": False}
         precheck = check(event, seen_case_ids)
+        if is_llm:
+            import time
+            time.sleep(1)
         seen_case_ids.add(case_id)
 
         result = {
             "case_id": case_id,
             "bucket": case["bucket"],
-            "gt_hard_stop": case["expected_outcome"] == "HARD_STOP",
+            "fixture_expected_outcome": case.get("expected_outcome"),
+            "gt_hard_stop": gt_map.get(case_id, case.get("expected_outcome") == "HARD_STOP"),
             "stop_signals": [],
             "link_status": None,
             "link_amount_paise": None,
@@ -140,12 +149,6 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, *, 
 
         results.append(result)
 
-    if execute_links:
-        for r in reconcile_created_links(log, client):
-            match = next((res for res in results if res["case_id"] == r["case_id"]), None)
-            if match and r["status"] == "paid":
-                match["link_completed"] = True
-
     return results
 
 
@@ -170,6 +173,7 @@ def main(argv=None):
         if audit_path.exists() and args.first_run:
             parser.error(f"--first-run was passed, but audit log '{audit_path}' already exists. Omit the flag to append, or move/rename the file.")
 
+    gt_map = _frozen_ground_truth(args.split)
     cases = _load_cases(args.split)
     if args.limit:
         cases = cases[: args.limit]
@@ -177,7 +181,13 @@ def main(argv=None):
     log = AuditLog(audit_path)
     client = RazorpayClient()  # only used for VERIFY (always) and dispatch/reconcile (if --execute-links)
 
-    results = run(cases, interpret, log, client, execute_links=args.execute_links)
+    results = run(cases, interpret, log, client, gt_map, execute_links=args.execute_links, is_llm=(args.interpreter == "llm"))
+
+    evidence_dir = Path("evidence")
+    evidence_dir.mkdir(exist_ok=True)
+    run_all_results = {r["case_id"]: r for r in results}
+    (evidence_dir / "run_all_results.json").write_text(json.dumps(run_all_results, indent=2), encoding="utf-8")
+
 
     ok, problems = verify_chain(audit_path)
     if not ok:

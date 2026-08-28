@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Add `time.sleep(1)` inside the LLM evaluation loop in `run_batch.py`.
-- [ ] Remove any inline reconciliation (checking link status immediately) during the creation run.
-- [ ] Add `_frozen_ground_truth(split)` to load frozen labels.
-- [ ] Modify the loop to attach both `gt_hard_stop` (frozen) and `fixture_expected_outcome` (day-1) to the case result object.
-- [ ] Accumulate case results into a dictionary keyed by `case_id` and persist it to `evidence/run_all_results.json` at the end of the run.
+- [x] Add `time.sleep(1)` inside the LLM evaluation loop in `run_batch.py`.
+- [x] Remove any inline reconciliation (checking link status immediately) during the creation run.
+- [x] Add `_frozen_ground_truth(split)` to load frozen labels.
+- [x] Modify the loop to attach both `gt_hard_stop` (frozen) and `fixture_expected_outcome` (day-1) to the case result object.
+- [x] Accumulate case results into a dictionary keyed by `case_id` and persist it to `evidence/run_all_results.json` at the end of the run.
