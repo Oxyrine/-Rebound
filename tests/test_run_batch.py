@@ -28,7 +28,7 @@ def test_execute_links_requires_audit_path(capsys):
     with pytest.raises(SystemExit):
         main(['--interpreter=rules', '--execute-links'])
     out, err = capsys.readouterr()
-    assert '--audit-path is required when --execute-links is used' in err
+    assert '--audit-path is required when --execute-links or --reconcile-only is used' in err
 
 def test_first_run_missing_when_audit_file_missing(tmp_path, capsys):
     log_path = tmp_path / 'new_log.jsonl'
@@ -65,3 +65,33 @@ def test_first_run_missing_when_audit_file_exists(mock_verify, mock_load, mock_r
     # Should not raise SystemExit
     main(['--interpreter=rules', '--audit-path', str(log_path)])
     assert mock_run.called
+
+import json
+
+@patch('scripts.run_batch.reconcile_created_links')
+@patch('scripts.run_batch.AuditLog')
+@patch('scripts.run_batch.RazorpayClient')
+def test_reconcile_only_updates_evidence(mock_client, mock_auditlog, mock_reconcile, tmp_path):
+    mock_reconcile.return_value = [{'case_id': 'c1', 'status': 'paid'}]
+    
+    evidence_dir = tmp_path / 'evidence'
+    evidence_dir.mkdir()
+    evidence_file = evidence_dir / 'run_all_results.json'
+    evidence_file.write_text('{"c1": {"link_completed": false}, "c2": {"link_completed": false}}')
+    
+    audit_log_path = tmp_path / 'some_log.jsonl'
+    audit_log_path.touch()
+    
+    with patch('scripts.run_batch.Path') as MockPath:
+        def side_effect(path_str):
+            if str(path_str) == 'evidence':
+                return evidence_dir
+            from pathlib import Path
+            return Path(path_str)
+        MockPath.side_effect = side_effect
+        
+        main(['--interpreter=rules', '--reconcile-only', '--audit-path', str(audit_log_path)])
+        
+    updated = json.loads(evidence_file.read_text())
+    assert updated['c1']['link_completed'] is True
+    assert updated['c2']['link_completed'] is False

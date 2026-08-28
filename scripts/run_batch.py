@@ -160,10 +160,11 @@ def main(argv=None):
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--audit-path", default=None, help="defaults to a scratch .jsonl, gitignored")
     parser.add_argument("--first-run", action="store_true")
+    parser.add_argument("--reconcile-only", action="store_true")
     args = parser.parse_args(argv)
 
-    if args.execute_links and not args.audit_path:
-        parser.error("--audit-path is required when --execute-links is used")
+    if (args.execute_links or args.reconcile_only) and not args.audit_path:
+        parser.error("--audit-path is required when --execute-links or --reconcile-only is used")
 
     audit_path = Path(args.audit_path) if args.audit_path else Path(f"scratch_batch_{args.interpreter}_{args.split}.jsonl")
 
@@ -173,6 +174,23 @@ def main(argv=None):
         if audit_path.exists() and args.first_run:
             parser.error(f"--first-run was passed, but audit log '{audit_path}' already exists. Omit the flag to append, or move/rename the file.")
 
+    if args.reconcile_only:
+        log = AuditLog(audit_path)
+        client = RazorpayClient()
+        evidence_file = Path("evidence") / "run_all_results.json"
+        if not evidence_file.exists():
+            print(f"Error: {evidence_file} not found. Cannot reconcile.", file=sys.stderr)
+            return 1
+        
+        run_all_results = json.loads(evidence_file.read_text(encoding="utf-8"))
+        for r in reconcile_created_links(log, client):
+            case_id = r["case_id"]
+            if case_id in run_all_results and r["status"] == "paid":
+                run_all_results[case_id]["link_completed"] = True
+                
+        evidence_file.write_text(json.dumps(run_all_results, indent=2), encoding="utf-8")
+        print(f"Reconciliation complete. Updated {evidence_file}.")
+        return 0
     gt_map = _frozen_ground_truth(args.split)
     cases = _load_cases(args.split)
     if args.limit:
