@@ -76,7 +76,7 @@ def test_reconcile_only_updates_evidence(mock_client, mock_auditlog, mock_reconc
     
     evidence_dir = tmp_path / 'evidence'
     evidence_dir.mkdir()
-    evidence_file = evidence_dir / 'run_all_results.json'
+    evidence_file = evidence_dir / 'run_results_rules_dev.json'
     evidence_file.write_text('{"c1": {"link_completed": false}, "c2": {"link_completed": false}}')
     
     audit_log_path = tmp_path / 'some_log.jsonl'

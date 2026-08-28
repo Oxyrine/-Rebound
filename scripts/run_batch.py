@@ -177,7 +177,9 @@ def main(argv=None):
     if args.reconcile_only:
         log = AuditLog(audit_path)
         client = RazorpayClient()
-        evidence_file = Path("evidence") / "run_all_results.json"
+        evidence_file = Path("evidence") / f"run_results_{args.interpreter}_{args.split}.json"
+        if not evidence_file.exists():
+            evidence_file = Path(f"scratch_batch_results_{args.interpreter}_{args.split}.json")
         if not evidence_file.exists():
             print(f"Error: {evidence_file} not found. Cannot reconcile.", file=sys.stderr)
             return 1
@@ -201,10 +203,14 @@ def main(argv=None):
 
     results = run(cases, interpret, log, client, gt_map, execute_links=args.execute_links, is_llm=(args.interpreter == "llm"))
 
-    evidence_dir = Path("evidence")
-    evidence_dir.mkdir(exist_ok=True)
+    if args.execute_links:
+        evidence_dir = Path("evidence")
+        evidence_dir.mkdir(exist_ok=True)
+        out_file = evidence_dir / f"run_results_{args.interpreter}_{args.split}.json"
+    else:
+        out_file = Path(f"scratch_batch_results_{args.interpreter}_{args.split}.json")
     run_all_results = {r["case_id"]: r for r in results}
-    (evidence_dir / "run_all_results.json").write_text(json.dumps(run_all_results, indent=2), encoding="utf-8")
+    out_file.write_text(json.dumps(run_all_results, indent=2), encoding="utf-8")
 
 
     ok, problems = verify_chain(audit_path)

@@ -16,10 +16,10 @@ from src.audit_log import AuditLog
 from src.razorpay_client import RazorpayClient
 
 # scripts/manifest.py enforces the same number on the fixture itself
-# ("Link-eligible cases ... exceeds 30-link cap") -- this is that cap
+# ("Link-eligible cases ... exceeds 28-link cap") -- this is that cap
 # enforced at run time, over the whole batch. Not a daily reset: REBOUND's
 # evidence run is a single Day-9 batch, not a long-running service.
-LINK_QUOTA_CAP = 30
+LINK_QUOTA_CAP = 28
 
 
 @dataclass(frozen=True)

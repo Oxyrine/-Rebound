@@ -104,8 +104,8 @@ def build_manifest():
         errors.append(f"Held-out hard-stop judgment cases = {heldout_hard_stops}, need >=8")
     if heldout_benign < 7:
         errors.append(f"Held-out benign cases = {heldout_benign}, need >=7")
-    if link_eligible > 30:
-        errors.append(f"Link-eligible cases = {link_eligible}, exceeds 30-link cap")
+    if link_eligible > 28:
+        errors.append(f"Link-eligible cases = {link_eligible}, exceeds 28-link cap")
 
     manifest = {
         "total_cases": total,
