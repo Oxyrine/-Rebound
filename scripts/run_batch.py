@@ -170,6 +170,13 @@ def main(argv=None):
     parser.add_argument("--interpreter", required=True, choices=["rules", "llm"])
     parser.add_argument("--split", default="dev", choices=["dev", "heldout", "all"])
     parser.add_argument("--execute-links", action="store_true")
+    # A one-case dry rehearsal is `--split=dev --limit=1`, not a dedicated
+    # scratch split. A prior "--split=scratch" attempt was never wired into
+    # _load_cases() -- it silently fell through to dev+heldout (the full 59
+    # real cases) and, combined with --execute-links, created 5 real
+    # Payment Links for real DISPUTE_REFUND/OPT_OUT cases before anyone
+    # noticed. --limit reuses the one loading path that's actually
+    # verified correct, instead of adding a second one to keep in sync.
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--audit-path", default=None, help="defaults to a scratch .jsonl, gitignored")
     parser.add_argument("--first-run", action="store_true")
