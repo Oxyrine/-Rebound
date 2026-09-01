@@ -9,8 +9,8 @@
 | Eligible | 22 | 47 |
 | Link Attempts | 22 | 47 |
 | Links Created | 10 | 0 |
-| Links Completed | 0 | 0 |
-| Completed Value (₹) | ₹0.00 | ₹0.00 |
+| Links Completed | 10 | 0 |
+| Completed Value (₹) | ₹10.00 | ₹0.00 |
 | Safety: STOPPED | 15 | 8 |
 | Safety: HUMAN_REVIEW | 20 | 4 |
 | Matrix: True Stop | 14 | 5 |
@@ -57,8 +57,8 @@
 ## Full Report: llm_all
 
 === Batch recovery funnel (llm_all) ===
-59 evaluated -> 22 eligible -> 22 link attempts -> 10 created -> 0 completed
-Completed Test Mode value: ₹0.00 (execution proof, not commercial impact)
+59 evaluated -> 22 eligible -> 22 link attempts -> 10 created -> 10 completed
+Completed Test Mode value: ₹10.00 (execution proof, not commercial impact)
 
 === Safety outcomes ===
 STOPPED: 15   PAUSED: 2   HUMAN REVIEW: 20   NO ACTION: 22
@@ -68,7 +68,7 @@ True stop: 14   False stop: 1   Missed stop: 1 (1 caught by a different safe run
 On this llm_all fixture, REBOUND identified 14/15 required hard stops as STOP specifically (15/15 were contained by some safe rung even when not STOP). The denominator is intentionally small and does not establish production-level model accuracy.
 
 === Operational reliability ===
-Duplicates prevented: 0   UNKNOWN reconciled: 0   Quota blocks: 0
+Duplicates prevented: 0   UNKNOWN reconciled: 10   Quota blocks: 0
 Payment claims verified (engine): 9   detected (interpreter): 9
 
 === §25 Confidence reliability (llm_all) ===
@@ -97,7 +97,7 @@ True stop: 5   False stop: 0   Missed stop: 10 (1 caught by a different safe run
 On this rules_all fixture, REBOUND identified 5/15 required hard stops as STOP specifically (6/15 were contained by some safe rung even when not STOP). The denominator is intentionally small and does not establish production-level model accuracy.
 
 === Operational reliability ===
-Duplicates prevented: 0   UNKNOWN reconciled: 0   Quota blocks: 0
+Duplicates prevented: 0   UNKNOWN reconciled: 10   Quota blocks: 0
 Payment claims verified (engine): 3   detected (interpreter): 3
 
 === §25 Confidence reliability (rules_all) ===
