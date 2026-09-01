@@ -1,0 +1,82 @@
+{
+  "intra_rater_agreement": "13/22",
+  "ground_truth": null,
+  "disagreements": [
+    {
+      "case_id": "RCV-003",
+      "pass1_label": "HARD_STOP",
+      "pass1_reasoning": "Dispute: refund didn't come",
+      "pass2_label": "HUMAN_REVIEW",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-014",
+      "pass1_label": "VERIFY_PAYMENT_STATUS",
+      "pass1_reasoning": "Payment claim: I paid it",
+      "pass2_label": "ALREADY_PAID_CLOSED",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-015",
+      "pass1_label": "VERIFY_PAYMENT_STATUS",
+      "pass1_reasoning": "Payment claim: Paid on 31st",
+      "pass2_label": "ALREADY_PAID_CLOSED",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-018",
+      "pass1_label": "VERIFY_PAYMENT_STATUS",
+      "pass1_reasoning": "Payment claim: already paid",
+      "pass2_label": "HUMAN_REVIEW",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-021",
+      "pass1_label": "VERIFY_PAYMENT_STATUS",
+      "pass1_reasoning": "Payment claim + Dispute: already paid, but damaged. Payment claim takes precedence.",
+      "pass2_label": "HARD_STOP",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-024",
+      "pass1_label": "HUMAN_REVIEW",
+      "pass1_reasoning": "Suspicious instruction / Injection",
+      "pass2_label": "HARD_STOP",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-037",
+      "pass1_label": "PAUSE_UNTIL_DATE",
+      "pass1_reasoning": "Dated promise: sending it now (bounded near-term window)",
+      "pass2_label": "RECOVERY_ELIGIBLE",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-041",
+      "pass1_label": "RECOVERY_ELIGIBLE",
+      "pass1_reasoning": "No text provided",
+      "pass2_label": "HUMAN_REVIEW",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    },
+    {
+      "case_id": "RCV-042",
+      "pass1_label": "RECOVERY_ELIGIBLE",
+      "pass1_reasoning": "No text provided",
+      "pass2_label": "HUMAN_REVIEW",
+      "pass2_reasoning": "provided as label-only (pass 2)",
+      "final_label": null
+    }
+  ],
+  "unanchored_payment_claim_caveats": [
+    "RCV-015"
+  ],
+  "frozen": false
+}
