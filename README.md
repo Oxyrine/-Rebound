@@ -291,6 +291,20 @@ is the frozen label; disagreements are resolved by the labeller against
 `fixtures/labeling_rubric.md`, never against memory of the first pass.
 `scripts/reconcile_labeling.py` produces `fixtures/heldout_ground_truth_frozen.json`.
 
+**A second, narrower limitation, found during pass-2 review:** the rubric's own
+Payment-claim section states that a labeller cannot verify payment status by
+reading text — `razorpay_context` carries no status field — and compensates by
+naming worked anchor cases (e.g. RCV-014 true, RCV-018 false) whose ground truth
+it spells out, so the labeller pattern-matches against a taught example rather
+than guessing. One held-out `ALREADY_PAID_TRUE` case, **RCV-015, has no anchor**
+— and its one available textual cue reads, by the rubric's own pattern, like the
+*false*-claim tell, while its authored outcome is true. `reconcile_labeling.py`
+flags any such unanchored case automatically (`unanchored_payment_claim_cases()`,
+derived by cross-referencing the rubric's named cases, never hardcoded) and
+records it in the frozen output as `unanchored_payment_claim_caveats`: the case is
+still labelled and still frozen if the two passes agree, but that agreement is
+disclosed as pattern consistency, not a verified judgment.
+
 ---
 
 ## A note on this repository's own process

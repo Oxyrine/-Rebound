@@ -19,3 +19,20 @@ Active
 - **Ticket 04 (README)**: drafted with `[from run]` placeholders (445e0d4).
 - **Rules-arm dev pipeline**: validated free — 3/9 hard stops, 0 false stops, 6 fall-through. Metrics path (incl. divergence + reliability) works end to end.
 - **Blocked on the human**: pass 2 labelling (02), the Razorpay browser checkouts (00 and 03), and the go/no-go on the one-shot `--execute-links` run (03). The 30-link Test Mode cap is the one irreversible resource.
+
+## 2026-09-01: rubric gap found in pass-2 review — RCV-015 unanchored
+
+labeling_rubric.md's Payment-claim section says text cannot verify payment
+status and compensates with named worked anchors (RCV-014 true, RCV-018
+false). RCV-015 (held-out, ALREADY_PAID_TRUE) has no anchor, and its only
+textual cue reads as the *false*-claim tell by the rubric's own pattern
+while its authored outcome is true. Confirmed by grepping the rubric for
+every RCV-\d+ mention -- RCV-015 is genuinely absent.
+
+Decision: do not amend the rubric or leak expected_outcome into pass 2.
+Label RCV-015 as best judgment same as any case; reconcile_labeling.py now
+flags it automatically post-hoc (unanchored_payment_claim_cases(), derived
+generically from the rubric text + heldout bucket, not hardcoded) and
+records the caveat in heldout_ground_truth_frozen.json rather than letting
+a pass1==pass2 agreement on it silently count as verified judgment. README
+§21 discloses this. 5 new tests (tests/test_reconcile_labeling.py), 150 pass.

@@ -16,15 +16,66 @@ that call belongs to the person who made both judgments, applying
 labeling_rubric.md themselves. Fill in "final_label" for each
 disagreement and re-run to complete the freeze.
 
+CAVEAT (found during pass-2 review, 2026-09-01): labeling_rubric.md's own
+Payment-claim section states a labeler cannot verify payment status by
+reading text -- razorpay_context carries no status field, only the
+identity chain. The rubric compensates by naming worked anchor cases
+(RCV-014 true, RCV-018 false, etc.) whose ground truth it spells out, so a
+labeler pattern-matches against a taught example rather than guessing.
+RCV-015 is an ALREADY_PAID_TRUE held-out case the rubric names nowhere --
+no anchor, no calibration -- and its one textual cue ("order number 563"
+not matching this case's real order_id) is the SAME shape of signal the
+rubric calls out as the false-claim tell in RCV-018, yet RCV-015's
+authored outcome is true. A pass1==pass2 agreement on an unanchored
+ALREADY_PAID_* case is pattern consistency, not a verified judgment, and
+must not be silently absorbed into the intra-rater number as if it were.
+_unanchored_payment_claim_cases() below flags any such case generically
+(derived by grepping the rubric for named case ids, not hardcoded to
+RCV-015) and the caveat is written into the frozen output, disclosed
+rather than fixed -- the case is still labeled and still frozen if the
+passes agree; the caveat says what that agreement does and doesn't mean.
+
 Run: python3 -m scripts.reconcile_labeling
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 FROZEN_PATH = FIXTURES_DIR / "heldout_ground_truth_frozen.json"
+
+# The two buckets labeling_rubric.md's own "Payment claim" section says
+# cannot be resolved from text -- razorpay_context has no status field.
+_TEXT_UNVERIFIABLE_BUCKETS = {"ALREADY_PAID_TRUE", "ALREADY_PAID_FALSE"}
+
+
+def _rubric_anchored_case_ids() -> set[str]:
+    """Case ids labeling_rubric.md names as worked examples. Read at
+    reconciliation time only -- never surfaced to a labeler mid-pass, and
+    never used to alter a label, only to flag which ALREADY_PAID_* cases
+    had no textual calibration available."""
+    rubric_path = FIXTURES_DIR / "labeling_rubric.md"
+    if not rubric_path.exists():
+        return set()
+    return set(re.findall(r"RCV-\d+", rubric_path.read_text(encoding="utf-8")))
+
+
+def unanchored_payment_claim_cases(case_ids) -> list[str]:
+    """Of the given case ids, which are ALREADY_PAID_TRUE/FALSE cases the
+    rubric names no anchor for. Cross-references heldout_cases.json for
+    bucket only -- reconciliation runs after both passes are complete, so
+    this reads no ground truth a labeler hasn't already finished with."""
+    heldout_path = FIXTURES_DIR / "heldout_cases.json"
+    if not heldout_path.exists():
+        return []
+    by_id = {c["case_id"]: c for c in json.loads(heldout_path.read_text(encoding="utf-8"))}
+    anchored = _rubric_anchored_case_ids()
+    return sorted(
+        cid for cid in case_ids
+        if by_id.get(cid, {}).get("bucket") in _TEXT_UNVERIFIABLE_BUCKETS and cid not in anchored
+    )
 
 
 def _load_worksheet(pass_num: int) -> dict:
@@ -90,11 +141,21 @@ def main():
     if resolved_this_pass:
         print(f"Manually resolved via final_label: {resolved_this_pass}")
 
+    unanchored = unanchored_payment_claim_cases(p1_by_id.keys())
+    if unanchored:
+        print(f"\nCAVEAT -- text-unresolvable, no rubric anchor: {unanchored}")
+        print("labeling_rubric.md names no worked example for these ALREADY_PAID_*")
+        print("cases, and the rubric itself says payment status cannot be verified")
+        print("by reading text. Any pass1==pass2 agreement on them is pattern")
+        print("consistency, not a verified judgment -- do not read the intra-rater")
+        print("number as solid for this subset.")
+
     frozen = len(disagreements) == 0
     out = {
         "intra_rater_agreement": f"{raw_agreement_count}/{total}",
         "ground_truth": agreed if frozen else None,
         "disagreements": disagreements,
+        "unanchored_payment_claim_caveats": unanchored,
         "frozen": frozen,
     }
     FROZEN_PATH.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
