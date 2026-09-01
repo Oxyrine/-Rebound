@@ -546,6 +546,55 @@ If the gate fails you lose *one demonstrated capability*, not the project — di
 **Protected from cutting:** Chaos Mock · tamper test · held-out split · threshold sweep · injection near-misses · multi-signal cases · rules-vs-LLM experiment.
 **Module test — apply to everything:** *every module must correspond to a visible demo moment, a measured output, or a safety-critical test.* Not module count — control boundaries.
 ## 28. Repository structure
+
+> **⟦DRIFT · 2026-09-01⟧** The tree below is the original plan. The repo was not built to it: `src/` is flat (no `interpreters/` package), and three planned modules never became files — their responsibilities landed elsewhere. `templates.py` has no home at all yet (recorded as a gap). The corrected tree follows; the original is kept beneath it for reference.
+>
+> Module relocations:
+> - `src/interpreters/{rules,llm}_interpreter.py` → flat `src/rules_interpreter.py`, `src/llm_interpreter.py`
+> - `src/quota_guard.py` → folded into `src/link_dispatch.py` (`quota_available`, `LINK_QUOTA_CAP`, `LINK_QUOTA_GUARD_BLOCKED`)
+> - `src/reconciliation.py` → `reconcile_created_links` in `src/link_dispatch.py`, plus `scripts/run_batch.py --reconcile-only`
+> - `src/templates.py` → **not built.** Deterministic template rendering (§13) is a known gap. The model authors no customer text regardless (the typed boundary forbids message fields at construction), so nothing unsafe depends on it; the gap is that there is no rendered outbound copy to show.
+> - `tests/test_quota_guard.py` → `tests/test_link_dispatch.py`
+> - `tests/test_idempotency.py` → does not exist yet; created by spec-amendment-01 ticket 06
+> - `src/metrics.py`, `scripts/threshold_sweep.py`, `scripts/reconcile_labeling.py`, `scripts/generate_labeling_worksheet.py`, `scripts/run_dev_interpreter.py` exist but were not in the plan
+> - `docs/SPEC.md` (this file), `docs/agents/` — added since
+
+Corrected tree (as built, 2026-09-01):
+```
+rebound/
+├── README.md
+├── AGENTS.md
+├── docs/
+│   ├── SPEC.md                   ← this document
+│   └── agents/{issue-tracker,triage-labels,domain}.md
+├── fixtures/
+│   ├── development_cases.json  heldout_cases.json  manifest.json
+│   ├── labeling_rubric.md  labeling_pass1_worksheet.json
+├── src/
+│   ├── structured_prechecks.py   instruction_detector.py
+│   ├── rules_interpreter.py      llm_interpreter.py
+│   ├── typed_boundary.py         policy_engine.py
+│   ├── payment_verifier.py       razorpay_client.py
+│   ├── link_dispatch.py          ← create + quota guard + reconcile
+│   ├── audit_log.py              metrics.py
+├── tests/
+│   ├── test_typed_boundary.py    test_policy_engine.py   test_precedence.py
+│   ├── test_instruction_detector.py  test_link_dispatch.py
+│   ├── test_chaos_mock.py        test_audit_chain.py
+│   ├── test_payment_verifier.py  test_razorpay_client.py
+│   ├── test_rules_interpreter.py test_llm_interpreter.py
+│   ├── test_run_batch.py         test_run_batch_ground_truth.py
+│   ├── test_metrics.py           test_generate_metrics.py  test_threshold_sweep.py
+├── scripts/
+│   ├── manifest.py               run_batch.py            generate_metrics.py
+│   ├── threshold_sweep.py        reconcile_labeling.py
+│   ├── generate_labeling_worksheet.py  run_dev_interpreter.py
+├── .scratch/                     ← issue tracker (day-1-evidence-run, final-evaluation, spec-amendment-01)
+└── evidence/                     ← run outputs (gitignored until the evidence run)
+```
+
+<details><summary>Original planned tree (not built to)</summary>
+
 ```
 rebound/
 ├── README.md                     ← positioning, non-claims, two safety classes,
@@ -594,6 +643,8 @@ rebound/
     ├── reference_id_retrieval.json
     └── quota_check.md
 ```
+
+</details>
 ## 29. Eleven-day schedule
 | Date | Work |
 |---|---|
