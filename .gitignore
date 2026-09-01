@@ -13,5 +13,4 @@ scratch_*
 evidence/run_results_*.json
 evidence/metrics_report.md
 evidence/divergence.json
-evidence/redteam_report.md
 evidence/redteam_results_*.json
