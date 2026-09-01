@@ -1,7 +1,7 @@
 # 04: README Update
 
 Type: task
-Status: in-progress (draft done, numbers blocked on 03)
+Status: resolved
 Blocked by: 03
 
 **What to build:** 
