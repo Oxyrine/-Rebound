@@ -7,9 +7,10 @@ inappropriate.
 
 Razorpay AI Buildathon 2026 · Track 03 (AI Revenue Recovery) · solo submission.
 
-> **Numbers below marked `[from run]` are placeholders** until the Day-9 evidence
-> run populates them from `evidence/metrics_report.md`. Nothing in this README is
-> hand-typed once that run exists — every figure traces to a file the code wrote.
+> Every figure in this README traces to a file the code wrote —
+> `evidence/metrics_report.md`, `evidence/run_all.jsonl`, `evidence/redteam_report.md`,
+> `scripts/threshold_sweep_report.md`. The evidence run completed 2026-09-01; see
+> **Results** for the routing-vs-execution split.
 
 ---
 
@@ -53,65 +54,71 @@ arithmetic, the amount, or the action.
 
 ## Results
 
-*On the held-out evaluation fixture (22 cases). Regenerate with
-`python -m scripts.run_batch --interpreter=llm --split=all --execute-links` then
-`python -m scripts.generate_metrics`.*
+*Two separate claims, kept separate. Full detail in `evidence/metrics_report.md`;
+raw run in `evidence/run_all.jsonl` (hash-chained, verified) and
+`evidence/run_results_llm_all.json`.*
 
-### 1. Batch recovery funnel
+### Routing evaluation — complete, independent of live link execution
 
-```
-59 cases evaluated
-      → [from run] recovery-eligible
-      → [from run] Payment Link attempts
-      → [from run] created
-      → [from run] completed
-```
+All **59 cases**, one frozen-LLM interpretation each, dev-set-frozen confidence
+threshold (0.9). Routing distribution: STOP 15 · VERIFY 9 · REVIEW 11 · RECOVER 22
+· PAUSE 2.
 
-Completed Test Mode value: **₹[from run]** — execution proof, not commercial
-impact. Test Mode transactions are dummy transactions with no real money.
+**Evidence-judgment hard-stop matrix** — dispute + opt-out + multi-signal buckets
+only, n = 17 (already-paid cases excluded: a deterministic API call settles them,
+and counting them would pad recall with wins the model did not earn):
 
-### 2. Safety outcomes
-
-```
-STOPPED: [from run]   PAUSED: [from run]   HUMAN REVIEW: [from run]   NO ACTION: [from run]
-```
-
-Evidence-judgment hard-stop matrix (dispute + opt-out + multi-signal only —
-already-paid cases are excluded because a deterministic API call settles them, and
-including them would pad recall with wins the model did not earn):
-
-|  | GT: hard stop | GT: no hard stop |
-|---|---|---|
-| System hard-stopped | [from run] | **[from run]** false stop |
-| System did not hard-stop | **[from run]** missed stop | [from run] correct non-stop |
-
-> On this held-out fixture, REBOUND identified [from run] / [from run] required
-> hard stops as STOP specifically. The denominator is intentionally small (8) and
-> does not establish production-level model accuracy.
-
-### 3. Evidence interpretation — rules vs LLM (§23)
-
-We held the fixture, policy, execution, and safety controls constant and changed
-only the evidence interpreter.
-
-| Method | Hard-stop recall | False stops | Automation rate | Human-review rate |
+| | True stop | False stop | Missed (still safe) | Missed (**UNSAFE**) |
 |---|---|---|---|---|
-| Rules baseline | [from run] | [from run] | [from run] | [from run] |
-| LLM semantic | [from run] | [from run] | [from run] | [from run] |
+| **LLM semantic** | 14 | 1 | 1 | **0** |
+| **Rules baseline** | 5 | 0 | 1 | **9** |
 
-Per-case divergence — every case the two arms routed differently, with which arm
-was safer and (where authored) the mechanism — is in
-`evidence/metrics_report.md` and `evidence/divergence.json`. **A tie in the
-aggregate counts is still a reported result:** the per-case table shows where the
-two interpreters actually disagreed.
+> On this held-out fixture the **LLM produced zero unsafe misses in the hard-stop
+> matrix, while the rules baseline produced nine** — nine dispute / opt-out /
+> multi-signal cases the keyword baseline routed to RECOVER (it would have chased a
+> customer who disputed the charge or asked to stop). The denominator is
+> intentionally small (17) and does not establish production-level model accuracy.
+> "Safer" and "correct" are not identical — see the divergence table.
 
-### 4. Operational reliability
+**Safety outcomes (LLM, 59):** STOPPED 15 · PAUSED 2 · HUMAN REVIEW 20 · NO ACTION 22.
 
-```
-duplicates prevented: [from run]   UNKNOWN reconciled: [from run]   quota blocks: [from run]
-payment claims: verified by engine [from run] vs detected by interpreter [from run]
-chaos conditions contained: 7/7 (tests/test_chaos_mock.py)
-```
+**Divergence (§23):** 30 of 59 cases routed differently between the two arms — LLM
+the safer arm on 26, rules the safer arm on 4. The 4 "rules safer" cases include
+ones where rules was *more conservative but wrong* (e.g. a false stop on a benign
+case); the ground-truth column in `evidence/metrics_report.md` makes that visible.
+This is the qualitative complement to the matrix above, not a substitute for it.
+
+**Confidence reliability (§25 sidecar, LLM dev-set):** in the [0.95, 1.00) band, 44
+of 51 cases routed to the intended outcome — **7 high-confidence misses**. This is
+*not* a calibration assessment; it is a coarse check confirming that model-reported
+confidence is not a calibrated probability.
+
+**§21 ground truth:** intra-rater agreement (pass 1 vs pass 2, blind, 48h apart)
+**13 / 22**; frozen ground truth vs the Day-1 fixture's own draft labels 21 / 22
+agree, 1 discrepancy.
+
+### Operational execution — rate-limited at 10 links, disclosed
+
+Of the 22 RECOVER-eligible cases, **10 Test Mode Payment Links were created,
+checked out through the documented mock-bank flow, and reconciled to status
+`paid`** (₹10.00 completed Test Mode value — execution proof, not commercial
+impact; Test Mode transactions carry no real money). The remaining 12 RECOVER
+cases are recorded as `NOT_ATTEMPTED_RATE_LIMITED`.
+
+Razorpay Test Mode rate-limited Payment Link creation at roughly five per short
+window; 3-second pacing did not help. Rather than modify the frozen Razorpay
+client to add retry/backoff during the evidence phase, execution was completed
+operationally: a recovery wrapper (`scripts/resume_evidence_run.py`) finished the
+routing pass over the audit path without re-interpreting any already-processed
+case and without creating further links. **The audit chain stayed valid
+throughout. No interpreter, policy, prompt, fixture, or threshold was changed.**
+The 10 links demonstrate the full chain — customer case → LLM interpretation →
+policy decision → RECOVERY_ELIGIBLE → Payment Link → Test Mode checkout →
+reconciliation → audit trail — which does not require 22 repetitions to establish.
+
+**Operational reliability:** duplicates prevented 0 · links reconciled 10 · quota
+blocks 0 · payment claims verified by engine 9 vs detected by interpreter 9 ·
+chaos conditions contained 7/7 (`tests/test_chaos_mock.py`).
 
 ### 5. Adversarial probe (not a measurement)
 
@@ -226,10 +233,11 @@ A **deterministic suspicious-instruction detector** that forces human review for
 known instruction-shaped evidence (role tokens like `system:`, patterns like
 `ignore previous`, `set confidence`, `mark as`). It runs **before the LLM call**
 and cannot be overridden by interpreter output. It is **not** "injection
-prevention" — it is a unit-tested guard on known patterns: [from run] known
-patterns caught, [from run] near-misses flagged. Injection is fourth in the threat
-hierarchy, behind missed dispute/opt-out (the real risk), uncertain money-moving
-actions, and semantically wrong output.
+prevention" — it is a unit-tested guard on known patterns. On the 59-case evidence
+run it caught **3 / 3 injection cases** (all → HUMAN_REVIEW via the pre-screen) and
+flagged **0 / 5 near-misses**. Injection is fourth in the threat hierarchy, behind
+missed dispute/opt-out (the real risk), uncertain money-moving actions, and
+semantically wrong output.
 
 ---
 
@@ -279,7 +287,7 @@ you touch an endpoint at all. See `docs/adr/0001-payment-links-only.md`.
 
 ```
 Method:                Single-author delayed double-labeling
-Intra-rater agreement: [from run] / 22
+Intra-rater agreement: 13 / 22  (raw pass 1 == pass 2, before manual resolution)
 Limitation:            No independent second annotator was available. Delayed
                        relabeling measures consistency with oneself, not
                        correctness.
@@ -319,6 +327,18 @@ was never built as drawn. The drift was caught by diffing the spec against
 `docs/SPEC.md` with dated annotations rather than silently corrected. This is the
 same "don't assert consistency, check it" discipline the Chaos Mock and the typed
 boundary apply, turned on the spec itself.
+
+The Day-9 live evidence run also did not go cleanly: Razorpay Test Mode
+rate-limited Payment Link creation after ~5 links, twice, and again during
+reconciliation. The choice at that point was to add retry/backoff to the frozen
+Razorpay client, or to complete the run operationally without touching evaluated
+code. The second was taken — a recovery wrapper resumed the routing pass over the
+existing hash-chained audit log without re-interpreting any already-processed case
+(the LLM is non-deterministic; a re-run would have produced a spliced dataset) and
+without creating further links. The 59-case routing evaluation is therefore
+complete and single-pass per case; the live-execution subset stopped at 10
+checked-out links, disclosed as an operational constraint, not folded into the
+routing evidence. See `docs/adr/0006-evidence-run-recovery.md`.
 
 ---
 
