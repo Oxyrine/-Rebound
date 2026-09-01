@@ -178,7 +178,7 @@ def _divergence_class(route_a: str, route_b: str, label_a: str, label_b: str) ->
     return "unclassified"
 
 
-def divergence_analysis(arms: dict, replies: dict) -> dict:
+def divergence_analysis(arms: dict, replies: dict, types: dict | None = None) -> dict:
     """Per-case rules-vs-LLM divergence (§23).
 
     `arms` maps an arm label ("rules_dev", "llm_dev", ...) to that arm's
@@ -187,6 +187,13 @@ def divergence_analysis(arms: dict, replies: dict) -> dict:
     evidence filenames). `replies` maps case_id -> customer_reply, joined
     from the fixtures by the caller so customer text never rides in the
     pipeline result records.
+
+    `types` (spec-amendment-01 ticket 09, optional) maps case_id -> an
+    AUTHORED mechanism label ("lexical_gap", "semantic_composition",
+    "ambiguity_resolution"). It is a human judgement written from the
+    resulting table, not computed -- routes alone cannot tell a paraphrase
+    miss from cross-clause composition. Absent -> every row's
+    divergence_type is None.
 
     Returns a dict with:
       - arms_compared: [label_a, label_b]
@@ -213,6 +220,7 @@ def divergence_analysis(arms: dict, replies: dict) -> dict:
             "n_shared": 0,
         }
 
+    types = types or {}
     label_a, label_b = labels[0], labels[1]
     arm_a, arm_b = arms[label_a], arms[label_b]
     shared = sorted(set(arm_a) & set(arm_b))
@@ -231,6 +239,7 @@ def divergence_analysis(arms: dict, replies: dict) -> dict:
             "gt_hard_stop": rec.get("gt_hard_stop"),
             "routes": {label_a: route_a, label_b: route_b},
             "safer_arm": _divergence_class(route_a, route_b, label_a, label_b),
+            "divergence_type": types.get(cid),
         })
 
     return {
@@ -264,14 +273,68 @@ def format_divergence(divergence: dict, *, max_reply_chars: int = 80) -> str:
         f"Safer arm: {divergence['counts']}"
     )
     lines.append("")
-    lines.append(f"| case | bucket | GT hard stop | {label_a} | {label_b} | safer | message |")
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append(f"| case | bucket | GT hard stop | {label_a} | {label_b} | safer | type | message |")
+    lines.append("|---|---|---|---|---|---|---|---|")
     for d in rows:
         reply = " ".join(d["customer_reply"].split())
         if len(reply) > max_reply_chars:
             reply = reply[: max_reply_chars - 1] + "…"
         lines.append(
             f"| {d['case_id']} | {d['bucket']} | {d['gt_hard_stop']} | "
-            f"{d['routes'][label_a]} | {d['routes'][label_b]} | {d['safer_arm']} | {reply} |"
+            f"{d['routes'][label_a]} | {d['routes'][label_b]} | {d['safer_arm']} | "
+            f"{d.get('divergence_type') or '—'} | {reply} |"
         )
+    return "\n".join(lines)
+
+
+# --- §25 confidence reliability check (spec-amendment-01 ticket 09) ----------
+#
+# NOT a calibration assessment. These are model-reported confidence scores,
+# not calibrated probabilities (§25 already says so). This is a coarse look at
+# whether higher reported confidence tracks a routed outcome that matched the
+# case's intended outcome, on the development set. Raw counts only.
+_CONFIDENCE_BANDS = [(0.0, 0.70), (0.70, 0.85), (0.85, 0.95), (0.95, 1.01)]
+
+
+def _routed_outcome(result: dict) -> str:
+    if result.get("route") == "VERIFY":
+        return result.get("resolved_outcome") or "VERIFY_PAYMENT_STATUS"
+    return _ROUTE_TO_OUTCOME.get(result.get("route", ""), result.get("route", ""))
+
+
+def confidence_reliability(results: list[dict]) -> dict:
+    scored = [r for r in results if r.get("confidence") is not None]
+    bands = []
+    for lo, hi in _CONFIDENCE_BANDS:
+        in_band = [r for r in scored if lo <= r["confidence"] < hi]
+        if not in_band:
+            continue
+        matched = sum(
+            1 for r in in_band
+            if r.get("fixture_expected_outcome")
+            and _routed_outcome(r) == r["fixture_expected_outcome"]
+        )
+        bands.append({
+            "band": f"[{lo:.2f}, {hi:.2f})",
+            "cases": len(in_band),
+            "routed_outcome_matched_intended": matched,
+        })
+    return {"bands": bands, "cases_with_confidence": len(scored)}
+
+
+def format_confidence_reliability(reliability: dict, *, split_label: str = "development") -> str:
+    lines = [
+        f"=== §25 Confidence reliability ({split_label}) ===",
+        "NOT a formal calibration assessment. Model-reported confidence, not a",
+        "calibrated probability (§25). Coarse check on a small set: does higher",
+        "reported confidence track a routed outcome that matched the intended one?",
+    ]
+    if not reliability["bands"]:
+        lines.append(f"_No cases carry a confidence score ({reliability['cases_with_confidence']} scored)._")
+        return "\n".join(lines)
+    lines.append("")
+    lines.append("| confidence band | cases | routed outcome matched intended |")
+    lines.append("|---|---|---|")
+    for b in reliability["bands"]:
+        lines.append(f"| {b['band']} | {b['cases']} | {b['routed_outcome_matched_intended']} |")
     return "\n".join(lines)

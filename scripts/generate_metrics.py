@@ -9,6 +9,8 @@ from src.metrics import (
     format_report,
     divergence_analysis,
     format_divergence,
+    confidence_reliability,
+    format_confidence_reliability,
 )
 from scripts.run_batch import AuditLog
 
@@ -25,6 +27,15 @@ def _load_replies():
             for case in json.loads(path.read_text(encoding="utf-8")):
                 replies[case["case_id"]] = case.get("customer_reply") or ""
     return replies
+
+
+def _load_divergence_types():
+    """case_id -> authored mechanism label, from an optional sidecar
+    (spec-amendment-01 ticket 09). Absent -> no type column populated."""
+    path = FIXTURES_DIR / "divergence_types.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {}
 
 
 def main():
@@ -131,7 +142,7 @@ def main():
             f.stem.replace("run_results_", ""): json.loads(f.read_text(encoding="utf-8"))
             for f in files
         }
-        divergence = divergence_analysis(arms_map, _load_replies())
+        divergence = divergence_analysis(arms_map, _load_replies(), _load_divergence_types())
     else:
         divergence = {"insufficient_arms": len(files), "arms_compared": [], "divergent": []}
     reports.append(format_divergence(divergence))
@@ -155,6 +166,8 @@ def main():
         rep = format_report(funnel, safety, matrix, reliability, split_label=arm_name)
         reports.append(f"## Full Report: {arm_name}\n")
         reports.append(rep)
+        reports.append("")
+        reports.append(format_confidence_reliability(confidence_reliability(results), split_label=arm_name))
         reports.append("\n" + "="*40 + "\n")
 
     out_file = evidence_dir / "metrics_report.md"

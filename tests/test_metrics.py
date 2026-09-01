@@ -1,5 +1,7 @@
 from src.metrics import (
+    confidence_reliability,
     divergence_analysis,
+    format_confidence_reliability,
     format_divergence,
     format_report,
     hard_stop_matrix,
@@ -203,3 +205,64 @@ def test_format_divergence_arms_agreed_line():
     out = format_divergence(d)
 
     assert "agreed on all 1 shared cases" in out
+
+
+# --- §23 divergence taxonomy (ticket 09, stretch) --------------------------
+
+
+def test_divergence_type_is_none_when_not_supplied():
+    d = divergence_analysis(
+        {"rules": _arm(_result(case_id="X", route="RECOVER")),
+         "llm": _arm(_result(case_id="X", route="STOP"))},
+        {},
+    )
+    assert d["divergent"][0]["divergence_type"] is None
+    assert "| — |" in format_divergence(d)
+
+
+def test_divergence_type_carried_and_rendered_when_supplied():
+    d = divergence_analysis(
+        {"rules": _arm(_result(case_id="X", route="RECOVER")),
+         "llm": _arm(_result(case_id="X", route="STOP"))},
+        {},
+        {"X": "lexical_gap"},
+    )
+    assert d["divergent"][0]["divergence_type"] == "lexical_gap"
+    assert "lexical_gap" in format_divergence(d)
+
+
+# --- §25 confidence reliability (ticket 09, stretch) -----------------------
+
+
+def _scored(case_id, confidence, route, expected):
+    return _result(case_id=case_id, route=route, confidence=confidence,
+                   fixture_expected_outcome=expected)
+
+
+def test_confidence_reliability_buckets_and_counts_matches():
+    results = [
+        _scored("A", 0.55, "REVIEW", "HUMAN_REVIEW"),   # [0.0,0.70)  match
+        _scored("B", 0.90, "STOP", "HARD_STOP"),        # [0.85,0.95) match
+        _scored("C", 0.92, "RECOVER", "HARD_STOP"),     # [0.85,0.95) miss
+        _scored("D", 0.99, "STOP", "HARD_STOP"),        # [0.95,1.01) match
+        _result(case_id="E"),                            # no confidence -> excluded
+    ]
+    rel = confidence_reliability(results)
+
+    assert rel["cases_with_confidence"] == 4
+    by_band = {b["band"]: b for b in rel["bands"]}
+    assert by_band["[0.85, 0.95)"] == {
+        "band": "[0.85, 0.95)", "cases": 2, "routed_outcome_matched_intended": 1,
+    }
+    assert "[0.70, 0.85)" not in by_band  # empty band omitted
+
+
+def test_format_confidence_reliability_carries_disclaimer_no_percentages():
+    out = format_confidence_reliability(confidence_reliability([_scored("A", 0.9, "STOP", "HARD_STOP")]))
+    assert "not a formal calibration assessment" in out.lower()
+    assert "%" not in out
+
+
+def test_format_confidence_reliability_handles_no_scored_cases():
+    out = format_confidence_reliability(confidence_reliability([_result()]))
+    assert "no cases carry a confidence score" in out.lower()

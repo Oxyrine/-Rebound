@@ -2,9 +2,15 @@
 
 **What to build:** A standalone runner that puts the adversarial cases through both interpreter arms and produces a report whose disclosure — author-written, single-pass, not an accuracy claim — is impossible to miss, and which states plainly which cases the system got wrong.
 
-**Blocked by:** 03 (needs the authored cases to run). 04 recommended first — it validates the file the runner consumes.
+**Blocked by:** 03 (needs the authored cases for the real run). Code + tests are done (commit 47a78bc); only the probe run and committed report remain.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (code complete, run pending 03)
+
+## Progress
+
+`scripts/run_redteam.py` + `tests/test_redteam.py` landed in 47a78bc — runner reuses `run_batch.run()` with `execute_links` hard-wired False, writes `evidence/redteam_results_{arm}.json` + `evidence/redteam_report.md` (disclosure first, per-case + by-mode tables, names divergences, raw counts only). 5 tests: no `PAYMENT_LINK_CREATED` even on a RECOVER stub, no link status, disclosure precedes every result, `execute_links` never a flag.
+
+**Remaining once ticket 03 lands:** run `python -m scripts.run_redteam`, review the generated report, decide whether to un-gitignore `evidence/redteam_report.md` so a panel sees the findings without running it, wire the README section (via `final-evaluation/04-readme-update`).
 
 - [ ] A new standalone runner script loads the red-team fixture and runs both arms through the existing pipeline entry point
 - [ ] Link execution is hard-coded off and not exposed as a parameter; the runner is a separate script, never a new value on the batch runner's split argument, so it can never sit adjacent to live link execution

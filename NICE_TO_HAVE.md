@@ -27,4 +27,4 @@ They are never a dependency of the core divergence analysis (ticket 02).
   carries that disclosure honestly; this only sharpens it). Plain text table or a single
   matplotlib PNG — no new charting dependency.
 
-If either is not reached, it stays here, declined for time, not for merit.
+Both were reached (there was slack) — see spec-amendment-01 ticket 09. This section is kept as the record of the decision.

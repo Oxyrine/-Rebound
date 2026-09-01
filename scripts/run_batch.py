@@ -112,6 +112,10 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, gt_
             # cases pad the agreement number with wins they never earned.
             "has_frozen_ground_truth": case_id in gt_map,
             "stop_signals": [],
+            # spec-amendment-01 ticket 09: the interpreter's reported confidence,
+            # for the reliability check. None on the malformed / rejected paths
+            # (no interpreter output).
+            "confidence": None,
             "link_status": None,
             "link_amount_paise": None,
             "link_completed": False,
@@ -135,6 +139,7 @@ def run(cases: list[dict], interpret, log: AuditLog, client: RazorpayClient, gt_
             continue
 
         result["stop_signals"] = ao.stop_signals
+        result["confidence"] = ao.confidence
         pre_screen_matched = is_suspicious(case.get("customer_reply") or "")
         decision = route(
             ao, precheck, pre_screen_matched=pre_screen_matched,
