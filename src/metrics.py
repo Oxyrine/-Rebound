@@ -6,8 +6,15 @@ real records passed in; a caller with no run yet has nothing to pass.
 Present in this order, per §24: recovery funnel -> safety outcomes ->
 hard-stop matrix -> operational reliability. The rules-vs-LLM comparison
 (§23) is two separate runs of this same module, compared by the caller --
-not this module's job.
+not this module's job -- except divergence_analysis() below, which is the
+per-case half of that comparison: it takes both arms' result maps and
+reports every case the two interpreters routed differently. A tie in the
+aggregate counts still produces a populated divergence list; that is the
+point -- "the arms tie" is only a null result if you cannot see which
+cases they disagreed on.
 """
+
+from collections import Counter
 
 # §24: restricted to dispute/opt-out/multi-signal buckets. Already-paid
 # cases are excluded -- a deterministic API call settles those, so
@@ -136,4 +143,135 @@ def format_report(funnel: dict, safety: dict, matrix: dict, reliability: dict, *
         f"Payment claims verified (engine): {reliability['payment_claims_verified_engine']}   "
         f"detected (interpreter): {reliability['payment_claims_detected_interpreter']}",
     ]
+    return "\n".join(lines)
+
+
+# --- §23 divergence analysis -------------------------------------------------
+#
+# Conservatism ordering of routes, used ONLY to decide which arm was the
+# safer of two DIFFERENT routes on the same case. Higher = more conservative
+# = suppresses/pauses/escalates rather than proceeding to collect. This is
+# the same ordering §15's precedence table encodes and §24's hard-stop
+# matrix leans on (_STILL_SAFE_ROUTES); it is not a new notion of
+# correctness -- the frozen ground truth (gt_hard_stop) rides along in every
+# divergence row so the reader judges correctness themselves.
+_ROUTE_CONSERVATISM = {
+    "STOP": 3,
+    "VERIFY": 2, "PAUSE": 2, "REVIEW": 2,
+    "RECOVER": 1, "LINK_QUOTA_GUARD": 1,
+}
+
+
+def _divergence_class(route_a: str, route_b: str, label_a: str, label_b: str) -> str:
+    """Given two DIFFERENT routes, name the safer arm, or say both landed in
+    the same safety tier by different rungs / both proceeded."""
+    tier_a = _ROUTE_CONSERVATISM.get(route_a, 0)
+    tier_b = _ROUTE_CONSERVATISM.get(route_b, 0)
+    if tier_a > tier_b:
+        return label_a
+    if tier_b > tier_a:
+        return label_b
+    if tier_a >= 2:
+        return "both_safe_different_rung"
+    if tier_a == 1:
+        return "both_unsafe"
+    return "unclassified"
+
+
+def divergence_analysis(arms: dict, replies: dict) -> dict:
+    """Per-case rules-vs-LLM divergence (§23).
+
+    `arms` maps an arm label ("rules_dev", "llm_dev", ...) to that arm's
+    {case_id: result} map. The first two entries in iteration order are
+    compared -- the caller passes them in a deterministic order (sorted
+    evidence filenames). `replies` maps case_id -> customer_reply, joined
+    from the fixtures by the caller so customer text never rides in the
+    pipeline result records.
+
+    Returns a dict with:
+      - arms_compared: [label_a, label_b]
+      - divergent: one row per case the two arms routed differently, each
+        carrying case_id, bucket, customer_reply (full text -- the caller
+        truncates for display), gt_hard_stop, routes {label: route},
+        safer_arm
+      - counts: Counter of safer_arm over the divergent rows
+      - n_divergent, n_shared
+
+    Fewer than two arms -> {"insufficient_arms": n, ...} with an empty
+    divergent list. Never a fabricated or empty-implying-agreement table.
+    Identical routing on every shared case -> divergent == [], which is a
+    real reported outcome, not an error.
+    """
+    labels = list(arms)
+    if len(labels) < 2:
+        return {
+            "insufficient_arms": len(labels),
+            "arms_compared": labels,
+            "divergent": [],
+            "counts": {},
+            "n_divergent": 0,
+            "n_shared": 0,
+        }
+
+    label_a, label_b = labels[0], labels[1]
+    arm_a, arm_b = arms[label_a], arms[label_b]
+    shared = sorted(set(arm_a) & set(arm_b))
+
+    divergent = []
+    for cid in shared:
+        route_a = arm_a[cid]["route"]
+        route_b = arm_b[cid]["route"]
+        if route_a == route_b:
+            continue
+        rec = arm_a[cid]
+        divergent.append({
+            "case_id": cid,
+            "bucket": rec.get("bucket"),
+            "customer_reply": replies.get(cid) or "",
+            "gt_hard_stop": rec.get("gt_hard_stop"),
+            "routes": {label_a: route_a, label_b: route_b},
+            "safer_arm": _divergence_class(route_a, route_b, label_a, label_b),
+        })
+
+    return {
+        "arms_compared": [label_a, label_b],
+        "divergent": divergent,
+        "counts": dict(Counter(d["safer_arm"] for d in divergent)),
+        "n_divergent": len(divergent),
+        "n_shared": len(shared),
+    }
+
+
+def format_divergence(divergence: dict, *, max_reply_chars: int = 80) -> str:
+    """Render divergence_analysis() output as a markdown section. The message
+    column is truncated to max_reply_chars; full text stays in the JSON
+    artifact the caller writes."""
+    header = "=== §23 Divergence analysis"
+    if "insufficient_arms" in divergence:
+        n = divergence["insufficient_arms"]
+        return f"{header} ===\n_Not computed: {n} arm result file(s) found, exactly 2 required._"
+
+    label_a, label_b = divergence["arms_compared"]
+    lines = [f"{header} ({label_a} vs {label_b}) ==="]
+
+    rows = divergence["divergent"]
+    if not rows:
+        lines.append(f"_Arms agreed on all {divergence['n_shared']} shared cases; no divergences._")
+        return "\n".join(lines)
+
+    lines.append(
+        f"{divergence['n_divergent']} of {divergence['n_shared']} shared cases diverged. "
+        f"Safer arm: {divergence['counts']}"
+    )
+    lines.append("")
+    lines.append(f"| case | bucket | GT hard stop | {label_a} | {label_b} | safer | message |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for d in rows:
+        reply = " ".join(d["customer_reply"].split())
+        if len(reply) > max_reply_chars:
+            reply = reply[: max_reply_chars - 1] + "…"
+        lines.append(
+            f"| {d['case_id']} | {d['bucket']} | {d['gt_hard_stop']} | "
+            f"{d['routes'][label_a]} | {d['routes'][label_b]} | {d['safer_arm']} | {reply} |"
+        )
     return "\n".join(lines)

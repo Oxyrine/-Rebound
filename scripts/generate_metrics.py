@@ -1,10 +1,30 @@
 import json
 import sys
 from pathlib import Path
-from src.metrics import recovery_funnel, safety_outcomes, hard_stop_matrix, operational_reliability, format_report
+from src.metrics import (
+    recovery_funnel,
+    safety_outcomes,
+    hard_stop_matrix,
+    operational_reliability,
+    format_report,
+    divergence_analysis,
+    format_divergence,
+)
 from scripts.run_batch import AuditLog
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+
+def _load_replies():
+    """case_id -> customer_reply, joined from the fixtures so customer text
+    is never carried through the pipeline result records (§12)."""
+    replies = {}
+    for name in ("development_cases.json", "heldout_cases.json"):
+        path = FIXTURES_DIR / name
+        if path.exists():
+            for case in json.loads(path.read_text(encoding="utf-8")):
+                replies[case["case_id"]] = case.get("customer_reply") or ""
+    return replies
 
 
 def main():
@@ -102,6 +122,24 @@ def main():
         table_row("Matrix: Missed Stop (still safe)", lambda i: matrices[i]["missed_stop_but_still_safe"])
         table_row("Matrix: Missed Stop (unsafe)", lambda i: matrices[i]["missed_stop_unsafe"])
         reports.append("")
+
+    # §23 Divergence analysis -- per-case complement to the aggregate table.
+    # A tie in the counts above is still a real finding once you can see
+    # which cases the two interpreters disagreed on and which arm was safer.
+    if len(files) == 2:
+        arms_map = {
+            f.stem.replace("run_results_", ""): json.loads(f.read_text(encoding="utf-8"))
+            for f in files
+        }
+        divergence = divergence_analysis(arms_map, _load_replies())
+    else:
+        divergence = {"insufficient_arms": len(files), "arms_compared": [], "divergent": []}
+    reports.append(format_divergence(divergence))
+    reports.append("")
+    if divergence.get("divergent"):
+        (evidence_dir / "divergence.json").write_text(
+            json.dumps(divergence["divergent"], indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     # §24 Full Reports
     for f in files:

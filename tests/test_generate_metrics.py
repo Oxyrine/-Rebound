@@ -81,3 +81,43 @@ def test_taxonomy_numbers_are_labeled_distinctly_not_conflated(tmp_path, monkeyp
     assert "20/22" in report
     assert "2. Frozen ground truth vs Day-1 fixture authoring" in report
     assert "intra-rater disagreement" not in report.split("2. Frozen ground truth")[1].split("\n")[0]
+
+
+def test_divergence_section_appears_with_two_arms(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    monkeypatch.setattr("scripts.generate_metrics.FIXTURES_DIR", tmp_path / "fixtures")
+
+    rules = [_result("RCV-1", gt_hard_stop=True, fixture_expected_outcome="HARD_STOP",
+                     has_frozen_ground_truth=False, route="RECOVER")]
+    llm = [_result("RCV-1", gt_hard_stop=True, fixture_expected_outcome="HARD_STOP",
+                   has_frozen_ground_truth=False, route="STOP")]
+    _write_results(evidence / "run_results_rules_dev.json", rules)
+    _write_results(evidence / "run_results_llm_dev.json", llm)
+
+    assert main() == 0
+    report = (evidence / "metrics_report.md").read_text(encoding="utf-8")
+
+    assert "§23 Divergence analysis (llm_dev vs rules_dev)" in report
+    assert "1 of 1 shared cases diverged" in report
+    assert (evidence / "divergence.json").exists()
+
+
+def test_divergence_not_computed_with_single_arm(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    monkeypatch.setattr("scripts.generate_metrics.FIXTURES_DIR", tmp_path / "fixtures")
+
+    _write_results(evidence / "run_results_llm_dev.json", [
+        _result("RCV-1", gt_hard_stop=False, fixture_expected_outcome="RECOVERY_ELIGIBLE",
+                has_frozen_ground_truth=False),
+    ])
+
+    assert main() == 0
+    report = (evidence / "metrics_report.md").read_text(encoding="utf-8")
+
+    assert "§23 Divergence analysis" in report
+    assert "Not computed: 1 arm result file(s) found" in report
+    assert not (evidence / "divergence.json").exists()

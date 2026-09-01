@@ -1,4 +1,6 @@
 from src.metrics import (
+    divergence_analysis,
+    format_divergence,
     format_report,
     hard_stop_matrix,
     operational_reliability,
@@ -105,3 +107,99 @@ def test_format_report_uses_held_out_framing_not_percentage_claims():
 
     assert "on this held-out fixture" in report.lower()
     assert "%" not in report  # raw counts, no percentages, per §24
+
+
+# --- §23 divergence analysis ------------------------------------------------
+
+
+def _arm(*results):
+    return {r["case_id"]: r for r in results}
+
+
+def test_divergence_flags_differing_routes_and_names_safer_arm():
+    rules = _arm(_result(case_id="RCV-1", bucket="DISPUTE_REFUND", gt_hard_stop=True, route="RECOVER"))
+    llm = _arm(_result(case_id="RCV-1", bucket="DISPUTE_REFUND", gt_hard_stop=True, route="STOP"))
+
+    d = divergence_analysis({"rules": rules, "llm": llm}, {"RCV-1": "please just take it back"})
+
+    assert d["n_divergent"] == 1
+    row = d["divergent"][0]
+    assert row["routes"] == {"rules": "RECOVER", "llm": "STOP"}
+    assert row["safer_arm"] == "llm"
+    assert row["gt_hard_stop"] is True
+    assert row["customer_reply"] == "please just take it back"
+
+
+def test_divergence_tie_in_counts_still_populates_per_case():
+    # Each arm stops one case and recovers the other -- aggregate STOP/RECOVER
+    # counts are identical, but the two cases still diverged.
+    rules = _arm(_result(case_id="A", route="STOP"), _result(case_id="B", route="RECOVER"))
+    llm = _arm(_result(case_id="A", route="RECOVER"), _result(case_id="B", route="STOP"))
+
+    d = divergence_analysis({"rules": rules, "llm": llm}, {})
+
+    assert d["n_divergent"] == 2
+
+
+def test_divergence_identical_arms_returns_empty_not_error():
+    rules = _arm(_result(case_id="A", route="STOP"))
+    llm = _arm(_result(case_id="A", route="STOP"))
+
+    d = divergence_analysis({"rules": rules, "llm": llm}, {})
+
+    assert d["divergent"] == []
+    assert d["n_divergent"] == 0
+    assert d["n_shared"] == 1
+
+
+def test_divergence_single_arm_guard():
+    d = divergence_analysis({"rules": _arm(_result(case_id="A"))}, {})
+
+    assert d["insufficient_arms"] == 1
+    assert d["divergent"] == []
+
+
+def test_divergence_classifies_both_unsafe_and_both_safe_different_rung():
+    rules = _arm(_result(case_id="U", route="RECOVER"), _result(case_id="S", route="VERIFY"))
+    llm = _arm(_result(case_id="U", route="LINK_QUOTA_GUARD"), _result(case_id="S", route="REVIEW"))
+
+    d = divergence_analysis({"rules": rules, "llm": llm}, {})
+    by_case = {row["case_id"]: row["safer_arm"] for row in d["divergent"]}
+
+    assert by_case["U"] == "both_unsafe"
+    assert by_case["S"] == "both_safe_different_rung"
+
+
+def test_format_divergence_renders_table_and_truncates_message():
+    d = divergence_analysis(
+        {
+            "rules": _arm(_result(case_id="X", bucket="OPT_OUT", gt_hard_stop=True, route="RECOVER")),
+            "llm": _arm(_result(case_id="X", bucket="OPT_OUT", gt_hard_stop=True, route="STOP")),
+        },
+        {"X": "z" * 200},
+    )
+
+    out = format_divergence(d, max_reply_chars=40)
+
+    assert "| X | OPT_OUT | True | RECOVER | STOP | llm |" in out
+    assert "…" in out
+    assert "z" * 200 not in out
+    assert "%" not in out
+
+
+def test_format_divergence_not_computed_line():
+    out = format_divergence({"insufficient_arms": 1, "arms_compared": [], "divergent": []})
+
+    assert "Not computed" in out
+    assert "exactly 2 required" in out
+
+
+def test_format_divergence_arms_agreed_line():
+    d = divergence_analysis(
+        {"rules": _arm(_result(case_id="A", route="STOP")), "llm": _arm(_result(case_id="A", route="STOP"))},
+        {},
+    )
+
+    out = format_divergence(d)
+
+    assert "agreed on all 1 shared cases" in out
