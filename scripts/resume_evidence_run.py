@@ -1,38 +1,34 @@
-"""scripts/resume_evidence_run.py -- OPERATIONAL RECOVERY WRAPPER.
+"""scripts/resume_evidence_run.py -- OPERATIONAL RECOVERY WRAPPER (Path B).
 
 Not part of REBOUND's evaluated behavior. The Day-9 --execute-links evidence
-run (LLM arm, --split=all) hit a Razorpay 429 rate limit after creating 5
-Payment Links, on case 26 of 59. This wrapper completes that run:
+run (LLM arm, --split=all) hit Razorpay rate limiting twice -- 5 Payment
+Links per rolling window, ~3s pacing did not help -- creating 10 links
+across two sessions before the third burst was blocked.
 
-  - WITHOUT re-interpreting the 25 cases session 1 already established.
-    Gemini is non-deterministic (RCV-028 already routed differently between
-    the dry run and session 1); reinterpreting would make the final dataset
-    "25 cases @ T1 + 34 cases @ T2" instead of "59 cases, one interpretation
-    each".
-  - WITHOUT modifying any frozen component. It imports and calls the frozen
-    functions unchanged: _get_interpreter / check / route / is_suspicious /
-    quota_available / verify_payment_claim / dispatch_link / verify_chain /
-    AuditLog. It mirrors run()'s per-case logic exactly for the 34 remaining
-    cases.
-  - Appends to the existing audit log. Never truncates, never --first-run.
-  - Paces ~3s between ACTUAL link-creation API calls (not between cases).
+DECISION (Path B): stop creating links. The central Track 03 result (LLM 0
+unsafe misses vs rules 9) comes from the 59-case ROUTING evaluation, which
+does not depend on link creation. The 10 links already demonstrate the full
+chain end to end. This wrapper therefore:
 
-Steps:
-  1. assert exact session-1 state (25 cases, 5 links, valid chain, no
-     duplicate POLICY_DECISION) -- fail loudly otherwise
-  2. resume the single dispatch the 429 interrupted: session-1 RECOVER case
-     with no link (RCV-047), via frozen dispatch_link()
-  3. interpret + route + dispatch the remaining 34 cases, once each,
-     mirroring run()
-  4. assert completed invariants (59 unique cases, 59 policy decisions,
-     <=28 links, no duplicate link per case, valid chain)
-  5. reconstruct evidence/run_results_llm_all.json from the combined audit
-     history, tagging interpretation_session 1|2, counting every
-     PAYMENT_LINK_CREATED (either session) as a created link
+  - finishes the remaining LLM interpretations, ONCE per case
+  - does NOT call dispatch_link for anything (no further creation attempts)
+  - still calls the frozen verify_payment_claim for VERIFY routes (a
+    read-only status GET, part of the routing evaluation, not the
+    rate-limited create endpoint)
+  - appends to the existing audit log, never --first-run, never truncates
+  - reconstructs evidence/run_results_llm_all.json from the complete audit
+    history, tagging interpretation_session 1|2, counting the 10
+    PAYMENT_LINK_CREATED events as created links and marking every other
+    RECOVER case link_status NOT_ATTEMPTED_RATE_LIMITED
 
 Frozen & untouched: LLM prompt, policy engine, rules interpreter, main
 fixture, confidence threshold, razorpay_client, link_dispatch, metrics,
-audit_log. Audit history: append only.
+audit_log. Audit history: append only. No dispatch_link calls.
+
+Cases already interpreted keep their session-1/session-2 routing exactly;
+their per-case stop_signals/confidence were never persisted (only route +
+matched_rung), so those are reconstructed from the rung where it uniquely
+implies a signal, else left empty with reconstructed_from_audit=True.
 
 Run once:  python -m scripts.resume_evidence_run
 """
@@ -43,7 +39,6 @@ import time
 from pathlib import Path
 
 from scripts.run_batch import (
-    NOMINAL_TEST_AMOUNT_PAISE,
     _ROUTE_TO_OUTCOME,
     _frozen_ground_truth,
     _get_interpreter,
@@ -51,7 +46,6 @@ from scripts.run_batch import (
 )
 from src.audit_log import AuditLog, verify_chain
 from src.instruction_detector import is_suspicious
-from src.link_dispatch import dispatch_link, quota_available
 from src.payment_verifier import verify_payment_claim
 from src.policy_engine import CONFIDENCE_THRESHOLD, route
 from src.structured_prechecks import check
@@ -59,13 +53,8 @@ from src.structured_prechecks import check
 AUDIT_PATH = Path("evidence/run_all.jsonl")
 RESULTS_PATH = Path("evidence/run_results_llm_all.json")
 SPLIT = "all"
-LINK_PACING_SECONDS = 3
-API_CALL_STATUSES = {"CREATED", "UNKNOWN"}  # dispatch_link actually hit the create endpoint
+EXPECTED_LINKS = 10  # created across sessions 1+2 before rate limiting; frozen for Path B
 
-# Session-1 per-case stop_signals were never persisted (only route + matched_rung
-# went to the audit log). Where the rung uniquely implies a signal, reconstruct it
-# so operational_reliability's "claims detected by interpreter" stays correct;
-# elsewhere leave it empty and mark the case reconstructed_from_audit.
 _RUNG_IMPLIES_SIGNAL = {
     "VERIFIED_PAYMENT_STATUS": ["PAYMENT_ALREADY_MADE_CLAIM"],
     "EXPLICIT_OPT_OUT": ["EXPLICIT_OPT_OUT"],
@@ -81,68 +70,58 @@ def _fail(msg):
     raise SystemExit(1)
 
 
-def _audit_records():
+def _records():
     return AuditLog(AUDIT_PATH).records()
 
 
 def _preflight(all_ids):
     if not AUDIT_PATH.exists():
         _fail(f"{AUDIT_PATH} does not exist -- nothing to resume.")
-
     ok, problems = verify_chain(AUDIT_PATH)
     if not ok:
         _fail(f"audit chain does not verify: {problems}")
 
-    audit = _audit_records()
+    audit = _records()
     policy = [r for r in audit if r["event_type"] == "POLICY_DECISION"]
     proc_ids = [r["case_id"] for r in policy]
     created = [r for r in audit if r["event_type"] == "PAYMENT_LINK_CREATED"]
 
-    if len(proc_ids) != 25:
-        _fail(f"expected 25 POLICY_DECISION events, found {len(proc_ids)} -- state is not the known session-1 baseline.")
-    if len(set(proc_ids)) != 25:
-        _fail(f"a case has >1 POLICY_DECISION: {[c for c in set(proc_ids) if proc_ids.count(c) > 1]}")
-    if proc_ids != all_ids[:25]:
-        _fail("session-1 case ids are not the exact first-25 prefix of _load_cases('all').")
-    if len(created) != 5:
-        _fail(f"expected exactly 5 PAYMENT_LINK_CREATED, found {len(created)}.")
-    if len({r['case_id'] for r in created}) != 5:
+    n = len(proc_ids)
+    if not (25 <= n < 59):
+        _fail(f"{n} POLICY_DECISION events -- expected a partial run in [25, 59).")
+    if len(set(proc_ids)) != n:
+        dups = [c for c in set(proc_ids) if proc_ids.count(c) > 1]
+        _fail(f"duplicate POLICY_DECISION for: {dups}")
+    if proc_ids != all_ids[:n]:
+        _fail("processed cases are not a clean prefix of _load_cases('all').")
+    if len(created) != EXPECTED_LINKS:
+        _fail(f"expected exactly {EXPECTED_LINKS} PAYMENT_LINK_CREATED, found {len(created)}.")
+    if len({r['case_id'] for r in created}) != len(created):
         _fail("a case has >1 PAYMENT_LINK_CREATED.")
 
-    session1_ids = proc_ids
-    remaining_ids = all_ids[25:]
-    if set(remaining_ids) != set(all_ids) - set(session1_ids):
-        _fail("remaining case set is not exactly (all - session1).")
-    if len(remaining_ids) != 34:
-        _fail(f"expected 34 remaining cases, computed {len(remaining_ids)}.")
-
-    routes = {r["case_id"]: r["payload"]["route"] for r in policy}
-    linked = {r["case_id"] for r in created}
-    s1_recover_no_link = [cid for cid in session1_ids if routes[cid] == "RECOVER" and cid not in linked]
-
+    remaining = all_ids[n:]
     print("PRE-FLIGHT: PASS")
-    print(f"  session-1 cases: 25   links: 5   chain: valid   no duplicate POLICY_DECISION")
-    print(f"  interrupted dispatch to resume: {s1_recover_no_link or 'none'}")
-    print(f"  remaining cases to interpret: {len(remaining_ids)}")
-    return session1_ids, remaining_ids, s1_recover_no_link
+    print(f"  processed: {n}/59 (clean prefix)   links: {len(created)}   chain: valid   no duplicate POLICY_DECISION")
+    print(f"  remaining interpretations: {len(remaining)}   (NO link creation for any of them)")
+    return proc_ids, remaining, len(created)
 
 
-def _process_one(case, log, client, interpret, seen):
-    """Exact mirror of scripts.run_batch.run()'s per-case body."""
-    case_id = case["case_id"]
-    event = {"case_id": case_id, "razorpay_context": case["razorpay_context"], "dispute_open": False}
+def _interpret_one(case, log, client, interpret, seen, gt_map):
+    """Mirror scripts.run_batch.run()'s per-case body, MINUS the RECOVER ->
+    dispatch_link branch. No link is ever created here."""
+    cid = case["case_id"]
+    event = {"case_id": cid, "razorpay_context": case["razorpay_context"], "dispute_open": False}
     precheck = check(event, seen)
     time.sleep(1)  # is_llm pacing, as in run()
-    seen.add(case_id)
+    seen.add(cid)
 
-    gt_map = _process_one.gt_map
     result = {
-        "case_id": case_id,
+        "case_id": cid,
         "bucket": case["bucket"],
         "fixture_expected_outcome": case.get("expected_outcome"),
-        "gt_hard_stop": (gt_map[case_id] == "HARD_STOP") if case_id in gt_map
+        "gt_hard_stop": (gt_map[cid] == "HARD_STOP") if cid in gt_map
         else (case.get("expected_outcome") == "HARD_STOP"),
-        "has_frozen_ground_truth": case_id in gt_map,
+        "has_frozen_ground_truth": cid in gt_map,
         "stop_signals": [],
         "confidence": None,
         "link_status": None,
@@ -155,56 +134,47 @@ def _process_one(case, log, client, interpret, seen):
     if not precheck.ok:
         result["route"] = "STOP"
         result["matched_rung"] = "MALFORMED_OR_DUPLICATE_EVENT"
-        log.append(case_id, "POLICY_DECISION", {"route": "STOP", "matched_rung": result["matched_rung"]})
+        log.append(cid, "POLICY_DECISION", {"route": "STOP", "matched_rung": result["matched_rung"]})
         return result
 
     try:
-        ao = interpret(case_id, case.get("customer_reply"))
+        ao = interpret(cid, case.get("customer_reply"))
     except Exception as exc:  # noqa: BLE001 -- Chaos condition 2 territory, as in run()
         result["route"] = "STOP"
         result["matched_rung"] = "INTERPRETER_OUTPUT_REJECTED"
-        log.append(case_id, "INTERPRETER_OUTPUT_REJECTED", {"error": repr(exc)})
+        log.append(cid, "INTERPRETER_OUTPUT_REJECTED", {"error": repr(exc)})
         return result
 
     result["stop_signals"] = ao.stop_signals
     result["confidence"] = ao.confidence
     pre_screen_matched = is_suspicious(case.get("customer_reply") or "")
-    decision = route(
-        ao, precheck, pre_screen_matched=pre_screen_matched,
-        quota_available=quota_available(log), confidence_threshold=CONFIDENCE_THRESHOLD,
-    )
+    # quota_available is irrelevant here (no dispatch) but route() takes it;
+    # pass True so a RECOVER stays RECOVER rather than LINK_QUOTA_GUARD.
+    decision = route(ao, precheck, pre_screen_matched=pre_screen_matched,
+                     quota_available=True, confidence_threshold=CONFIDENCE_THRESHOLD)
     result["route"] = decision.route
     result["matched_rung"] = decision.matched_rung
-    log.append(case_id, "POLICY_DECISION", {"route": decision.route, "matched_rung": decision.matched_rung})
+    log.append(cid, "POLICY_DECISION", {"route": decision.route, "matched_rung": decision.matched_rung})
 
     if decision.route == "VERIFY":
         ctx = case["razorpay_context"]
         verification = verify_payment_claim(client, order_id=ctx["order_id"], claimed_payment_id=ctx.get("payment_id"))
         result["resolved_outcome"] = verification.outcome
-        log.append(case_id, "PAYMENT_CLAIM_VERIFIED", {"outcome": verification.outcome, "reason": verification.reason})
-    elif decision.route == "RECOVER":
-        dispatch = dispatch_link(
-            log, client, case_id=case_id, amount_paise=NOMINAL_TEST_AMOUNT_PAISE,
-            reference_id=case["merchant_reference_id"], description=f"REBOUND {case_id}",
-        )
-        result["link_status"] = dispatch.status
-        result["link_amount_paise"] = NOMINAL_TEST_AMOUNT_PAISE if dispatch.status == "CREATED" else None
-        result["resolved_outcome"] = _ROUTE_TO_OUTCOME[decision.route]
-        print(f"    {case_id}: RECOVER -> dispatch {dispatch.status}")
-        if dispatch.status in API_CALL_STATUSES:
-            time.sleep(LINK_PACING_SECONDS)
+        log.append(cid, "PAYMENT_CLAIM_VERIFIED", {"outcome": verification.outcome, "reason": verification.reason})
+        print(f"    {cid}: VERIFY -> {verification.outcome}")
     else:
         result["resolved_outcome"] = _ROUTE_TO_OUTCOME.get(decision.route)
+        if decision.route == "RECOVER":
+            print(f"    {cid}: RECOVER (no link -- Path B)")
 
     return result
 
 
-def _postflight(all_ids):
+def _postflight(all_ids, links_before):
     ok, problems = verify_chain(AUDIT_PATH)
     if not ok:
-        _fail(f"audit chain does not verify after resume: {problems}")
-
-    audit = _audit_records()
+        _fail(f"audit chain does not verify after completion: {problems}")
+    audit = _records()
     policy = [r for r in audit if r["event_type"] == "POLICY_DECISION"]
     created = [r for r in audit if r["event_type"] == "PAYMENT_LINK_CREATED"]
     pids = [r["case_id"] for r in policy]
@@ -213,18 +183,23 @@ def _postflight(all_ids):
         _fail(f"expected 59 POLICY_DECISION events, found {len(pids)}.")
     if set(pids) != set(all_ids) or len(set(pids)) != 59:
         _fail("the 59 POLICY_DECISION case ids are not exactly the 59 fixture ids.")
-    if len(created) > 28:
-        _fail(f"{len(created)} PAYMENT_LINK_CREATED events -- exceeds the 28-link quota.")
+    if len(pids) != len(set(pids)):
+        _fail("duplicate POLICY_DECISION after completion.")
+    if len(created) != links_before:
+        _fail(f"PAYMENT_LINK_CREATED count changed ({links_before} -> {len(created)}) -- Path B must not create links.")
     if len({r['case_id'] for r in created}) != len(created):
-        _fail("a case has >1 PAYMENT_LINK_CREATED after resume.")
+        _fail("a case has >1 PAYMENT_LINK_CREATED.")
 
     print("\nPOST-FLIGHT: PASS")
-    print(f"  59 unique cases   59 policy decisions   {len(created)} links (<=28)   no duplicate link   chain: valid")
+    print(f"  59 unique cases   59 policy decisions   no duplicates   chain: valid")
+    print(f"  PAYMENT_LINK_CREATED: {len(created)} (unchanged -- no further creation attempts)")
 
 
-def _reconstruct_results(all_cases, session1_ids, session2_results):
+def _reconstruct(all_cases, live_results):
     gt_map = _frozen_ground_truth(SPLIT)
-    audit = _audit_records()
+    all_ids = [c["case_id"] for c in all_cases]
+    session1 = set(all_ids[:25])
+    audit = _records()
     by_case = {}
     for r in audit:
         by_case.setdefault(r["case_id"], []).append(r)
@@ -233,8 +208,8 @@ def _reconstruct_results(all_cases, session1_ids, session2_results):
     out = {}
     for case in all_cases:
         cid = case["case_id"]
-        if cid in session2_results:
-            res = dict(session2_results[cid])
+        if cid in live_results:
+            res = dict(live_results[cid])
         else:
             evts = by_case.get(cid, [])
             pd = next((e for e in evts if e["event_type"] == "POLICY_DECISION"), None)
@@ -258,12 +233,15 @@ def _reconstruct_results(all_cases, session1_ids, session2_results):
                 "matched_rung": rung,
                 "resolved_outcome": (pcv["payload"]["outcome"] if pcv
                                      else _ROUTE_TO_OUTCOME.get(pd["payload"]["route"])),
-                "interpretation_session": 1,
                 "reconstructed_from_audit": True,
             }
+        res["interpretation_session"] = 1 if cid in session1 else 2
+
         if cid in linked:
             res["link_status"] = "CREATED"
-            res["link_amount_paise"] = NOMINAL_TEST_AMOUNT_PAISE
+            res["link_amount_paise"] = 100  # NOMINAL_TEST_AMOUNT_PAISE
+        elif res["route"] == "RECOVER":
+            res["link_status"] = "NOT_ATTEMPTED_RATE_LIMITED"
         out[cid] = res
     return out
 
@@ -271,47 +249,40 @@ def _reconstruct_results(all_cases, session1_ids, session2_results):
 def main():
     all_cases = _load_cases(SPLIT)
     all_ids = [c["case_id"] for c in all_cases]
-    case_by_id = {c["case_id"]: c for c in all_cases}
     if len(all_ids) != 59:
         _fail(f"_load_cases('all') returned {len(all_ids)} cases, expected 59.")
+    case_by_id = {c["case_id"]: c for c in all_cases}
 
-    session1_ids, remaining_ids, s1_recover_no_link = _preflight(all_ids)
+    proc_ids, remaining, links_before = _preflight(all_ids)
 
     from src.razorpay_client import RazorpayClient
     interpret = _get_interpreter("llm")
     log = AuditLog(AUDIT_PATH)
     client = RazorpayClient()
-    _process_one.gt_map = _frozen_ground_truth(SPLIT)
+    gt_map = _frozen_ground_truth(SPLIT)
 
-    print("\nSTEP 2: resume the interrupted session-1 dispatch(es)")
-    for cid in s1_recover_no_link:
-        case = case_by_id[cid]
-        dispatch = dispatch_link(
-            log, client, case_id=cid, amount_paise=NOMINAL_TEST_AMOUNT_PAISE,
-            reference_id=case["merchant_reference_id"], description=f"REBOUND {cid}",
-        )
-        print(f"  {cid}: dispatch {dispatch.status}")
-        if dispatch.status in API_CALL_STATUSES:
-            time.sleep(LINK_PACING_SECONDS)
+    print(f"\nCOMPLETING {len(remaining)} interpretations (no link creation)")
+    seen = set(proc_ids)
+    live = {}
+    for cid in remaining:
+        live[cid] = _interpret_one(case_by_id[cid], log, client, interpret, seen, gt_map)
 
-    print(f"\nSTEP 3: interpret + route + dispatch the {len(remaining_ids)} remaining cases (one pass each)")
-    seen = set(session1_ids)
-    session2_results = {}
-    for cid in remaining_ids:
-        session2_results[cid] = _process_one(case_by_id[cid], log, client, interpret, seen)
+    _postflight(all_ids, links_before)
 
-    _postflight(all_ids)
-
-    print("\nSTEP 5: reconstruct evidence/run_results_llm_all.json from the combined audit history")
-    results = _reconstruct_results(all_cases, session1_ids, session2_results)
+    print("\nRECONSTRUCTING evidence/run_results_llm_all.json from the complete audit history")
+    results = _reconstruct(all_cases, live)
     RESULTS_PATH.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    from collections import Counter
+    routes = Counter(r["route"] for r in results.values())
     s1 = sum(1 for r in results.values() if r["interpretation_session"] == 1)
-    s2 = sum(1 for r in results.values() if r["interpretation_session"] == 2)
-    created_total = sum(1 for r in results.values() if r.get("link_status") == "CREATED")
-    print(f"  wrote {len(results)} case results  ({s1} session-1, {s2} session-2)  {created_total} links CREATED")
-    print("\nNEXT: verify the artifact, run the browser checkouts, then run_batch --reconcile-only,")
-    print("      then generate_metrics. Do NOT assume the evidence is valid before that.")
+    created = sum(1 for r in results.values() if r.get("link_status") == "CREATED")
+    rl = sum(1 for r in results.values() if r.get("link_status") == "NOT_ATTEMPTED_RATE_LIMITED")
+    print(f"  59 cases  ({s1} session-1, {59 - s1} session-2)")
+    print(f"  routes: {dict(routes)}")
+    print(f"  links: {created} CREATED, {rl} RECOVER cases NOT_ATTEMPTED_RATE_LIMITED")
+    print("\nNEXT: verify artifact, browser-checkout the 10 links, run_batch --reconcile-only,")
+    print("      run rules arm dry, generate_metrics. Do not assume validity before that.")
     return 0
 
 
