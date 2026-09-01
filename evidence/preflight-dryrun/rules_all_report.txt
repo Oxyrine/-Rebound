@@ -1,0 +1,14 @@
+=== Batch recovery funnel (all (rules interpreter, links NOT executed -- dry run)) ===
+59 evaluated -> 47 eligible -> 47 link attempts -> 0 created -> 0 completed
+Completed Test Mode value: ₹0.00 (execution proof, not commercial impact)
+
+=== Safety outcomes ===
+STOPPED: 8   PAUSED: 0   HUMAN REVIEW: 4   NO ACTION: 47
+
+=== Hard-stop matrix (dispute/opt-out/multi-signal only, n=17) ===
+True stop: 5   False stop: 0   Missed stop: 10 (1 caught by a different safe rung -- VERIFY/PAUSE/REVIEW, 9 genuinely fell through)   Correct non-stop: 2
+On this all (rules interpreter, links NOT executed -- dry run) fixture, REBOUND identified 5/15 required hard stops as STOP specifically (6/15 were contained by some safe rung even when not STOP). The denominator is intentionally small and does not establish production-level model accuracy.
+
+=== Operational reliability ===
+Duplicates prevented: 0   UNKNOWN reconciled: 0   Quota blocks: 0
+Payment claims verified (engine): 3   detected (interpreter): 3
