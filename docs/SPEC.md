@@ -184,6 +184,9 @@ All fixtures synthetic. Visible label on every output surface:
   "suspected_injection": false
 }
 ```
+
+> **⟦DRIFT · 2026-09-01⟧** The example's `stop_signals` value `"DISPUTE_REVIEW_REQUIRED"` is not in the frozen vocabulary. The five recognised signals (`src/policy_engine.py` docstring) are `PAYMENT_ALREADY_MADE_CLAIM`, `EXPLICIT_OPT_OUT`, `DISPUTE_OR_REFUND`, `AMBIGUOUS_OR_CONFLICTING`, `PROMISE_TO_PAY`; a dispute is `DISPUTE_OR_REFUND`. Unrecognised signals fall through rather than erroring. Illustrative example only — no code depends on it — but read `DISPUTE_OR_REFUND` here.
+
 Forbidden, rejected at **construction**: `amount` · `discount` · `waiver` · `refund` · `payment_link_url` · `execution_action` · `retry_time` · any customer-facing message text · any policy override · any tool or action name.
 ```python
 # tests/test_typed_boundary.py
@@ -233,6 +236,8 @@ PRECEDENCE ORDER (first match wins)
                                        else: LINK_QUOTA_GUARD → merchant review,
                                        NO API call made
 ```
+
+> **⟦DRIFT · 2026-09-01⟧** `src/policy_engine.route()` implements **10** first-match checks, not 9. An extra rung sits between 5 (SUSPICIOUS_INSTRUCTION_DETECTED) and 6 (LOW_CONFIDENCE): `EVIDENCE_REFS_MISSING` — a stop_signal asserted with an empty `evidence_refs` list routes to REVIEW. It exists for Chaos condition 3 (§22, "Missing / invalid `evidence_refs` → review") and is a schema-consistency check on the interpreter's own output, not a signal to route on. The other 9 rungs map 1:1 to this table. **Code authoritative.**
 Multi-signal cases that must be in the fixture and tested: dispute + opt-out · already-paid claim + explicit dispute · promise-to-pay + injection-like wording · low confidence after a deterministic hard stop · "I already paid another invoice."
 Outcome classes reported separately, never collapsed:
 ```
@@ -286,6 +291,8 @@ CREATING → timeout → UNKNOWN → reconcile
 **Say it precisely:** `UNIQUE(case_id)` guarantees at-most-one *local action record*. At-most-one *remote Payment Link* is only approximated unless reconciliation runs. Test a timeout occurring **after** successful remote creation.
 ## 18. The 30-link cap
 Verified: **Test Mode allows a maximum of 30 Payment Links per business**; beyond that, contact support.
+
+> **⟦DRIFT · 2026-09-01⟧** The Razorpay figure of 30 is an external fact and stands. The *local* guard is tighter: `LINK_QUOTA_CAP = 28` in `src/link_dispatch.py` (commit `2a2d1f6`), and `manifest.py` rejects a fixture with more than 28 link-eligible cases. The demo cap of 5 below is unchanged. **Code authoritative for the local value (28); Razorpay's 30 unchanged.**
 - **Never map N fixture cases to N links.** Link-eligible count stays well below 30.
 - A **local quota guard** blocks the attempt *before* any HTTP request — the panel sees you prevent the call rather than make it and handle the error.
 - **Completing** a Test Mode payment requires clicking through the hosted mock bank page. Not an API operation.
@@ -348,6 +355,8 @@ LAYER 4 — TYPED BOUNDARY (the floor)
 | Benign / ordinary failures | 23 | 7 |
 | **Total** | **58** | **22** |
 Development: 36. Held-out: 22.
+
+> **⟦DRIFT · 2026-09-01⟧** Spec: 58 total / 36 development / 23 BENIGN. Code (`scripts/manifest.py`, `fixtures/manifest.json`): **59 total / 37 development / 24 BENIGN**, held-out unchanged at 22. RCV-059 was added on Day 2 to give the PROMISE_TO_PAY specificity-gate rule an isolated single-signal proof case (RCV-022, the only other PAUSE_UNTIL_DATE example, is also MULTI_SIGNAL, so the rule and "pauses only in combination" were indistinguishable on the data — see the comment in `manifest.py`). The added case's benign counterpart brings BENIGN to 24. `manifest.py` asserts `total == 59`, `dev_count == 37`. **Code authoritative; every count below that says 58/36/23 is stale.**
 **Why 58 and not 40:** at 40, the held-out hard-stop denominator falls to 1–2 — not a metric, a rounding error. At 58 it is **8** (3 disputes + 2 opt-outs + ~3 multi-signal). Cutting from 80 to 58 removed only LLM-generated filler and cost about an hour; cutting to 40 would have removed critical cases and destroyed the measurement.
 ### Design rules
 - **Realistic base rate.** Most cases have no customer reply. Real failed payments mostly produce silence.
@@ -399,6 +408,9 @@ near-miss, injection, multi-signal counted in total
 every case has payment_id + order_id
 → if unsatisfiable, it SAYS SO and you resize deliberately
 ```
+
+> **⟦DRIFT · 2026-09-01⟧** As built, `manifest.py` asserts `total == 59` / `heldout == 22` / `dev == 37` (not 58/22), and enforces `payment_link_eligible ≤ 28` (not ≤ 30 — the local cap moved to 28 in commit `2a2d1f6`; `LINK_QUOTA_CAP` in `src/link_dispatch.py`). It also enforces `heldout_hard_stops ≥ 8` and `heldout_benign ≥ 7` as written. **Code authoritative.**
+
 **Every number in the dashboard, README, and video comes from this generated output.** Never typed by hand.
 ## 21. Ground truth labeling
 **Preferred:** an independent reviewer blind-labels the held-out 22 — `customer_state`, `hard_stop_required`, `automatic_contact_allowed`, `required_next_action` — with no sight of expected labels or model outputs.
