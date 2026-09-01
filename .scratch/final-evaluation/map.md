@@ -3,7 +3,7 @@
 This tracks the non-code, operational phase of the Buildathon project submission: the rigorous manual labeling, ground truth freezing, and final official evidence runs. (Note: Demo script, HTML tables, and video production will be handled in a separate tracking space to keep this focused purely on evaluation).
 
 ## Status
-Active
+Complete
 
 ## Decisions so far
 - **§25 Scope:** §25 is swept on the dev set only and frozen before held-out is touched. It is already generated in `scripts/threshold_sweep_report.md` and does not block or wait on the final evidence run.
@@ -36,3 +36,15 @@ generically from the rubric text + heldout bucket, not hardcoded) and
 records the caveat in heldout_ground_truth_frozen.json rather than letting
 a pass1==pass2 agreement on it silently count as verified judgment. README
 §21 discloses this. 5 new tests (tests/test_reconcile_labeling.py), 150 pass.
+
+## 2026-09-01: evidence run complete (Path B)
+
+Pass 2 labelled, 9 disagreements resolved, ground truth frozen (intra-rater 13/22).
+Live evidence run hit Razorpay rate limiting (~5 links/window) three times.
+Decision: complete operationally, no frozen-code change (ADR 0006). Recovery
+wrapper (scripts/resume_evidence_run.py) finished the 59-case routing pass without
+re-interpreting session-1 cases and without creating more links. 10 links created
++ checked out + reconciled 'paid'. 12 RECOVER cases NOT_ATTEMPTED_RATE_LIMITED.
+
+Final: LLM 0 unsafe misses vs rules 9. Divergence 30 of 59 (LLM safer 26, rules 4).
+README done. All 5 tickets resolved.
