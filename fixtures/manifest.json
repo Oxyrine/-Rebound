@@ -38,6 +38,8 @@
   "heldout_hard_stop_judgment_cases": 8,
   "heldout_benign_cases": 7,
   "payment_link_eligible_total": 26,
+  "redteam_cases": 0,
+  "redteam_failure_modes": {},
   "constraints_satisfied": true,
   "errors": []
 }

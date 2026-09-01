@@ -55,10 +55,38 @@ def validate_case_shape(case, errors):
         errors.append(f"{case.get('case_id')}: missing order_id in razorpay_context")
 
 
+# spec-amendment-01 ticket 04. Red-team probe cases (fixtures/redteam_cases.json)
+# are held OUTSIDE the 58/59-case fixture -- never in dev, never held-out, never
+# summed into total_cases. This is the structural guard (§31) that stops the
+# category drifting into the total the way BENIGN drifted 23 -> 24: the manifest
+# refuses to build if a red-team id collides with a fixture id. Red-team cases
+# skip validate_case_shape (which hard-rejects any bucket outside REQUIRED_BUCKETS
+# and is tuned to the fixture's field set); they get their own shape check for the
+# §12 identity chain plus the four red-team-only fields.
+def load_redteam_cases():
+    return load_cases("redteam_cases.json")
+
+
+def validate_redteam_case_shape(case, errors):
+    cid = case.get("case_id", "???")
+    if case.get("split") != "redteam":
+        errors.append(f"{cid}: red-team case must have split == 'redteam', got {case.get('split')!r}")
+    for field in (
+        "case_id", "bucket", "customer_reply", "expected_outcome",
+        "authoring_method", "labeling_method", "failure_mode", "probe_rationale",
+    ):
+        if not case.get(field):
+            errors.append(f"{cid}: red-team case missing/empty field '{field}'")
+    ctx = case.get("razorpay_context", {})
+    if not ctx.get("order_id") or not ctx.get("payment_id"):
+        errors.append(f"{cid}: red-team case missing identity chain (needs order_id + payment_id)")
+
+
 def build_manifest():
     dev = load_cases("development_cases.json")
     heldout = load_cases("heldout_cases.json")
     all_cases = dev + heldout
+    redteam = load_redteam_cases()
 
     errors = []
     for case in all_cases:
@@ -68,6 +96,21 @@ def build_manifest():
     dupes = [i for i, count in Counter(ids).items() if count > 1]
     if dupes:
         errors.append(f"Duplicate case_ids: {dupes}")
+
+    # Red-team disjointness -- the structural guard. Red-team cases are NOT
+    # added to all_cases, so total/dev/heldout counts and every downstream
+    # number stay anchored to the fixture. Their only interaction with the
+    # manifest is this check.
+    if redteam:
+        for case in redteam:
+            validate_redteam_case_shape(case, errors)
+        rt_ids = [c["case_id"] for c in redteam]
+        overlap = sorted(set(ids) & set(rt_ids))
+        if overlap:
+            errors.append(f"Red-team case_ids collide with the fixture: {overlap}")
+        rt_dupes = [i for i, count in Counter(rt_ids).items() if count > 1]
+        if rt_dupes:
+            errors.append(f"Duplicate red-team case_ids: {rt_dupes}")
 
     total = len(all_cases)
     heldout_count = len(heldout)
@@ -117,6 +160,9 @@ def build_manifest():
         "heldout_hard_stop_judgment_cases": heldout_hard_stops,
         "heldout_benign_cases": heldout_benign,
         "payment_link_eligible_total": link_eligible,
+        # Reported separately, never summed into total_cases (spec-amendment-01 #04).
+        "redteam_cases": len(redteam),
+        "redteam_failure_modes": dict(Counter(c.get("failure_mode") for c in redteam)),
         "constraints_satisfied": len(errors) == 0,
         "errors": errors,
     }
