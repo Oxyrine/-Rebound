@@ -29,3 +29,19 @@ Resolved in commit 0f2b7cf. Probe run against the 6 authored cases; `evidence/re
 **Result:** rules arm diverged from the intended label on 5 of 6 cases; LLM arm on 0 of 6.
 
 **Open question for the human:** 0/6 LLM divergence is honest but a weak probe outcome -- AI-drafted traps did not catch the AI interpreter, exactly the circularity risk flagged when ticket 03 was assigned. The rules-vs-LLM contrast (5/6 vs 0/6) is itself a strong result for the §23 AI-justification. Options: (a) ship as-is, leaning on the contrast; (b) hand-write 2-3 genuinely harder cases. Not blocking; recorded for the README-wiring step (final-evaluation/04-readme-update).
+
+## Open question — resolved 2026-09-01
+
+Ship the six as-is; do not add harder cases. Rationale (the human's call, recorded
+verbatim in substance): adding cases after observing 0/6 LLM divergence would be
+searching for a failing case having already seen the first six pass — informal
+adversarial tuning that undercuts the epistemic discipline the amendment exists to
+demonstrate. The 5/6-vs-0/6 contrast is itself the stronger result; a zero-failure
+probe is legitimate provided the construction is disclosed, which it is.
+
+README §5 updated to the precise framing: "In six author-written adversarial
+probes... establish no accuracy claim," the two-evidence-streams separation
+(59-case fixture = quantitative, red-team = qualitative characterization), the
+literal-vs-contextual pattern in RT-001/002/005/006 as qualitative support for the
+architectural thesis, and the 0/6 result left deliberately uncomfortable rather
+than smoothed over. The six cases are frozen; ticket 05 is fully closed.

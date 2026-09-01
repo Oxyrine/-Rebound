@@ -115,20 +115,51 @@ chaos conditions contained: 7/7 (tests/test_chaos_mock.py)
 
 ### 5. Adversarial probe (not a measurement)
 
-> These are adversarial probes authored for this project, single-pass, unblinded.
-> They are **not** part of the 59-case fixture, **not** held out, and establish
-> **no accuracy claim**. They characterise known semantic failure modes;
-> failures are reported as found and are not fixed in response.
+These are two separate evidence streams, and they stay separate:
 
-Six hand-reviewed cases, one per failure mode (indirect opt-out, dispute buried in
-polite text, negated payment claim, hedged promise with no date, multi-signal with
-the hard stop buried last, code-mixed sarcasm). Full report:
-`evidence/redteam_report.md`.
+```
+59-case fixture              6 red-team probes
+      │                            │
+quantitative evaluation      known semantic failure modes
+      │                            │
+ rules vs LLM                qualitative characterization
+      │                            │
+ divergence analysis         limitations / non-claims
+      │
+ AI performance evidence
+```
 
-| | diverged from the intended label |
+Six hand-written cases, one per targeted semantic failure mode (indirect opt-out,
+dispute buried in polite text, negated payment claim, hedged promise with no date,
+multi-signal with the hard stop buried last, code-mixed sarcasm). **Not** part of
+the 59-case fixture, **not** held out, labelled single-pass and unblinded.
+Full report: `evidence/redteam_report.md`.
+
+| | diverged from the author's label |
 |---|---|
-| Rules baseline | [from run] of 6 |
-| LLM semantic | [from run] of 6 |
+| Rules baseline | 5 of 6 |
+| LLM semantic | 0 of 6 |
+
+**The correct reading:** in six author-written adversarial probes targeting
+specified semantic failure modes, the LLM matched the author's labels on all six
+cases, while the rules baseline diverged on five. These probes are not part of the
+59-case fixture, were labelled in a single unblinded pass, and establish no
+accuracy claim.
+
+Four of the six (indirect opt-out, buried dispute, multi-signal-last, sarcasm)
+show a qualitative pattern worth naming: a literal/lexical reading routes toward
+recovery, a contextual reading routes toward a safety-preserving stop or review.
+That is evidence the semantic layer can recognise meaning a deliberately simple
+lexical baseline misses — a *qualitative* complement to the quantitative
+rules-vs-LLM table above, not a substitute for it.
+
+**On the 0/6 result, left deliberately uncomfortable rather than smoothed over:**
+these six probes did not expose an LLM failure. That does not establish
+robustness — the probe was author-written, single-pass, and intentionally small.
+No further cases were added after seeing this result: searching for a case that
+makes the LLM fail, having already observed the first six did not, would turn the
+probe into informal adversarial tuning and undercut the epistemic discipline this
+amendment exists to demonstrate. The six are frozen.
 
 ### Confidence threshold (§25) — swept, not asserted
 
