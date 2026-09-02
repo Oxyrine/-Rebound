@@ -1,6 +1,6 @@
 """Watch REBOUND decide one case, step by step -- the readable version of
-scripts/run_batch.py for demos and the video. Dry run: never creates a
-payment link, never calls Razorpay (VERIFY cases show the route only).
+scripts/run_batch.py. Dry run: never creates a payment link, never calls
+Razorpay (VERIFY cases show the route only).
 
     python -m scripts.demo                 # 3 illustrative cases, rules arm
     python -m scripts.demo RCV-023         # one case by id
