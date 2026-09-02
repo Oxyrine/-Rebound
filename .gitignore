@@ -14,3 +14,6 @@ evidence/run_results_*.json
 evidence/metrics_report.md
 evidence/divergence.json
 evidence/redteam_results_*.json
+
+# local video-prep script, not for the repo
+docs/video-script.md
