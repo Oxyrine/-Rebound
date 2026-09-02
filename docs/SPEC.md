@@ -564,8 +564,12 @@ Corrected tree (as built, 2026-09-01):
 rebound/
 ├── README.md
 ├── AGENTS.md
+├── architecture/
+│   ├── system-diagram.mmd        ← source
+│   └── system-diagram.png        ← rendered; how the as-built modules connect
 ├── docs/
 │   ├── SPEC.md                   ← this document
+│   ├── adr/0001..0006-*.md       ← why the architecture is shaped this way
 │   └── agents/{issue-tracker,triage-labels,domain}.md
 ├── fixtures/
 │   ├── development_cases.json  heldout_cases.json  manifest.json

@@ -1,0 +1,58 @@
+%%{init: {"theme":"neutral","flowchart":{"nodeSpacing":38,"rankSpacing":46,"htmlLabels":true}}}%%
+flowchart TB
+    IN["Failed-payment event + customer reply<br/><i>(one fixture case)</i>"]
+
+    subgraph DET1["Deterministic pre-checks &mdash; no LLM"]
+        PRE["structured_prechecks.py<br/>malformed / duplicate / payment-claim shape"]
+        SUS["instruction_detector.py<br/>is_suspicious() &mdash; adversarial-instruction pre-screen"]
+    end
+
+    subgraph ARM["Interpreter (exactly one arm per run)"]
+        RULES["rules_interpreter.py<br/><i>baseline: 3 keyword classes</i>"]
+        LLM["llm_interpreter.py<br/><i>Gemini flash-lite, frozen prompt</i>"]
+    end
+
+    BND["typed_boundary.py &mdash; AgentOutput<br/>signals + confidence + evidence_refs only<br/><i>no customer-text field is constructible</i>"]
+
+    subgraph ENG["policy_engine.py &mdash; deterministic"]
+        ROUTE["route() &middot; first-match precedence<br/>most-conservative-wins"]
+    end
+
+    VER["payment_verifier.py<br/>deterministic Razorpay status fetch<br/><i>model identifies evidence, Razorpay determines truth</i>"]
+    DISP["link_dispatch.py<br/>quota guard (cap 28) + audit-log idempotency check"]
+    RZP["razorpay_client.py &rarr; Razorpay Test Mode API<br/>create &middot; fetch status &middot; reconcile"]
+
+    AUD[("audit_log.py<br/>hash-chained append-only<br/>POLICY_DECISION per case")]
+    MET["metrics.py / generate_metrics.py<br/><i>offline: hard-stop matrix, divergence</i>"]
+
+    STOP["STOP<br/>HARD_STOP"]
+    PAUSE["PAUSE<br/>PAUSE_UNTIL_DATE"]
+    REVIEW["REVIEW<br/>HUMAN_REVIEW"]
+    RECOVER["RECOVER<br/>RECOVERY_ELIGIBLE"]
+
+    IN --> PRE --> SUS --> RULES & LLM
+    RULES --> BND
+    LLM --> BND
+    BND --> ROUTE
+    ROUTE --> STOP
+    ROUTE --> PAUSE
+    ROUTE --> REVIEW
+    ROUTE --> VER
+    ROUTE --> RECOVER
+    VER -.->|resolved status re-enters routing| ROUTE
+    RECOVER --> DISP --> RZP
+    ROUTE -.-> AUD
+    DISP -.-> AUD
+    RZP -.-> AUD
+    AUD --> MET
+
+    classDef det fill:#e8f0fe,stroke:#4285f4,color:#1a1a1a;
+    classDef llm fill:#fef7e0,stroke:#f9ab00,color:#1a1a1a;
+    classDef eng fill:#e6f4ea,stroke:#34a853,color:#1a1a1a;
+    classDef ext fill:#fce8e6,stroke:#ea4335,color:#1a1a1a;
+    classDef audit fill:#f3e8fd,stroke:#a142f4,color:#1a1a1a;
+    class PRE,SUS,RULES det;
+    class LLM llm;
+    class BND,ROUTE,VER,DISP eng;
+    class RZP ext;
+    class AUD,MET audit;

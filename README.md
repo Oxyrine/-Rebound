@@ -43,6 +43,11 @@ Deterministic policy engine       ← §15 precedence, most conservative wins
                      audit + metrics
 ```
 
+A rendered version with the actual module names is at
+[`architecture/system-diagram.png`](architecture/system-diagram.png)
+(source: `system-diagram.mmd`). The `docs/adr/` records explain *why* the
+architecture is shaped this way; the diagram shows *how* the pieces connect.
+
 Structured checks run first, so the interpreter only touches residual ambiguous
 text — this minimizes cost, latency, and hallucination exposure.
 
@@ -349,8 +354,9 @@ routing evidence. See `docs/adr/0006-evidence-run-recovery.md`.
 | `src/` | interpreters (rules, llm), typed boundary, policy engine, payment verifier, link dispatch (+ quota guard + reconcile), audit log, metrics |
 | `scripts/` | `manifest.py` (constraint satisfaction, not reporting), `run_batch.py`, `run_redteam.py`, `generate_metrics.py`, `threshold_sweep.py`, labeling tools |
 | `fixtures/` | 37 development + 22 held-out cases, 6 red-team probe cases (held separate), generated `manifest.json`, labeling rubric |
-| `docs/` | `SPEC.md` (the locked spec + drift annotations), `adr/` (5 decision records), `agents/` |
-| `tests/` | 145 tests |
+| `architecture/` | `system-diagram.png` (+ `.mmd` source) — the as-built module wiring |
+| `docs/` | `SPEC.md` (the locked spec + drift annotations), `adr/` (6 decision records), `agents/` |
+| `tests/` | 150 tests |
 | `evidence/` | run outputs (generated); `redteam_report.md` committed |
 
 Every module corresponds to a visible demo moment, a measured output, or a
